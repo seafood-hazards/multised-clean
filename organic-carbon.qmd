@@ -1,0 +1,132 @@
+---
+title: "Organic carbon"
+subtitle: "Relating the target metals to total organic carbon"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Trace metals bind to organic matter, so total organic carbon (CORG, reported as
+TOC in the EFSA spec) is a third control on their concentration alongside grain
+size and the Fe/Al normalisers. Where a metal tracks organic carbon but not
+aluminium, it is organically rather than lithogenically controlled. This page
+relates each target metal to the co-located CORG, **separately per source**.
+
+The analysis is run in the `sedimenter` pipeline (`R/analysis/organic/`). Each
+target is paired with the CORG on the **same subsample and same fraction**; CORG is
+converted from mg/kg to percent. All depths are kept, reported by the EFSA depth
+bands. 4Demon has no organic carbon.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+odir <- "data/analysis/organic"
+avail <- read_csv(file.path(odir, "organic_availability.csv"), show_col_types = FALSE)
+dist  <- read_csv(file.path(odir, "organic_distribution.csv"), show_col_types = FALSE)
+corr  <- read_csv(file.path(odir, "organic_correlation.csv"),  show_col_types = FALSE)
+pairs <- read_csv(file.path(odir, "organic_pairs.csv"),        show_col_types = FALSE)
+
+src_levels  <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+band_levels <- c("0-5", "5-40", ">40", "unknown")
+ord_src <- function(x) factor(x, levels = src_levels)
+theme_set(theme_minimal(base_size = 12))
+```
+
+## 1. Organic carbon coverage
+
+How much of the target data carries a co-located CORG value (same subsample, same
+fraction), per source and depth band. Four sources have good coverage; notably
+Vannmiljø, which was nearly unusable for Fe/Al, carries organic carbon for about
+half of its targets.
+
+```{r}
+#| label: avail-table
+avail |>
+  mutate(Source = ord_src(Source), band = factor(band, levels = band_levels)) |>
+  arrange(Source, band) |>
+  select(Source, band, n_target, `% with CORG` = pct_CORG) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+## 2. Organic carbon content (%)
+
+The organic carbon percentage (bulk samples) by source and depth band. Values are
+typical for marine sediment (around 1 to 3 %), with organic-rich outliers.
+
+```{r}
+#| label: dist-table
+dist |>
+  filter(frac_class == "bulk") |>
+  mutate(Source = ord_src(Source), band = factor(band, levels = band_levels)) |>
+  arrange(Source, band) |>
+  select(Source, band, n_subsamples, `median %` = median, p25, p75, `max %` = max) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+## 3. Which metals track organic carbon?
+
+The r-squared of a log-log fit of metal against CORG (bulk samples, at least 10
+pairs). **ZN and CU** associate with organic carbon, and so does **MO**, which the
+Fe/Al normalisation could not explain (it is redox / organic controlled rather than
+lithogenic). **CO and MN**, strong on aluminium, are weak here: they are
+lithogenic, not organic.
+
+```{r}
+#| label: strength-table
+corr |>
+  filter(frac_class == "bulk") |>
+  transmute(Source = ord_src(Source), Element = symbol, n, `r2 (CORG)` = r2) |>
+  arrange(Source, Element) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+```{r}
+#| label: strength-fig
+#| fig-cap: "Log-log metal to CORG fit strength (r-squared) in bulk samples, per source."
+#| fig-width: 8
+#| fig-height: 4
+corr |>
+  filter(frac_class == "bulk",
+         Source %in% c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB")) |>
+  ggplot(aes(symbol, r2)) +
+  geom_col(fill = "#228833") +
+  facet_wrap(~ factor(Source, levels = src_levels)) +
+  labs(x = NULL, y = "r-squared (log-log)") +
+  ylim(0, 1)
+```
+
+## 4. The organic relationship
+
+For the organic-associated metals, concentration rises with organic carbon.
+Mareano (bulk, complete organic-carbon coverage) shows it for copper, zinc and
+molybdenum.
+
+```{r}
+#| label: scatter-fig
+#| fig-cap: "Mareano bulk target concentration against organic carbon (log y, linear fit)."
+#| fig-width: 8
+#| fig-height: 3
+pairs |>
+  filter(Source == "Mareano", frac_class == "bulk",
+         symbol %in% c("CU", "ZN", "MO"),
+         !is.na(corg_pct), corg_pct > 0, value_std > 0) |>
+  ggplot(aes(corg_pct, value_std)) +
+  geom_point(alpha = 0.15, size = 0.6, colour = "#228833") +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "#AA3377", se = FALSE) +
+  scale_y_log10() +
+  facet_wrap(~ symbol, scales = "free_y") +
+  labs(x = "organic carbon (%)", y = "concentration (mg/kg, log)")
+```
+
+::: {.callout-note}
+Read together with the [Fe/Al normalisation](normalisation.qmd) page: CO and MN are
+lithogenic (Al), MO is organic (CORG), and CU and ZN respond to both. This split
+guides which control to use per element when defining a local background at the
+later merged stage. Iodine and selenium remain sparse and noisy.
+:::

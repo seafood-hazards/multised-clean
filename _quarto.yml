@@ -28,6 +28,8 @@ website:
             href: grain-size.qmd
           - text: "Fe/Al normalisation"
             href: normalisation.qmd
+          - text: "Organic carbon"
+            href: organic-carbon.qmd
 
 format:
   html:
