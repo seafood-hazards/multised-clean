@@ -1,0 +1,276 @@
+---
+title: "DB Schema (Clean)"
+subtitle: "The tables and columns of the clean databases these analyses read"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+.mermaid { max-width: 620px; margin-left: auto; margin-right: auto; }
+.mermaid svg { max-width: 100% !important; width: 100%; height: auto; }
+```
+
+The analyses on this site read the five clean databases, one per source. Each
+`<source>_clean.sqlite` has the seven shared tables carried from the slim schema
+(`element`, `dataset`, `site`, `event`, `subsample`, `measurement`, `method`), plus
+`grain_size_fraction` where the source has grain-size (not 4Demon). How they are
+built is documented on the
+[slim site](https://seafood-hazards.github.io/multised-slim/); this page is a
+reference for the table layout the analyses depend on.
+
+## Schema diagram
+
+The hierarchy flows from `dataset` and `site` through `event` and `subsample` down
+to `measurement`. `element` is a lookup for both `method` and `measurement` via the
+`symbol` key. The `grain_size_fraction` table (absent for 4Demon) hangs off
+`subsample` alongside `measurement`.
+
+```{mermaid}
+erDiagram
+  dataset   ||--o{ event               : "dataset_id"
+  site      ||--o{ event               : "site_id"
+  event     ||--o{ subsample           : "event_id"
+  subsample ||--o{ measurement         : "subsample_id"
+  subsample ||--o{ grain_size_fraction : "subsample_id"
+  element   ||--o{ measurement         : "symbol"
+  element   ||--o{ method              : "symbol"
+  method    ||--o{ measurement         : "method_id"
+
+  element {
+    TEXT symbol PK
+  }
+  dataset {
+    INTEGER dataset_id PK
+  }
+  site {
+    INTEGER site_id PK
+  }
+  event {
+    INTEGER event_id PK
+    INTEGER dataset_id FK
+    INTEGER site_id FK
+  }
+  subsample {
+    INTEGER subsample_id PK
+    INTEGER event_id FK
+  }
+  measurement {
+    INTEGER measurement_id PK
+    INTEGER subsample_id FK
+    TEXT symbol FK
+    INTEGER method_id FK
+  }
+  method {
+    INTEGER method_id PK
+    TEXT symbol FK
+  }
+  grain_size_fraction {
+    INTEGER gsf_id PK
+    INTEGER subsample_id FK
+    TEXT symbol FK
+  }
+```
+
+Each entity above shows only its keys; the full column list for every table is in
+the sections below.
+
+::: {.callout-note}
+`measurement.symbol` is a denormalisation: it is derivable via
+`method_id -> method.symbol` but kept as a key for query efficiency.
+:::
+
+```{r}
+library(tibble)
+library(knitr)
+```
+
+## measurement
+
+One row per cleaned chemistry measurement: the 7 target elements, the Fe/Al
+normalisers, and organic carbon (CORG / TOC*), told apart by `element.category`.
+Failed-QC rows are gone; duplicates and technical replicates are collapsed.
+Grain-size composition has moved to `grain_size_fraction`.
+
+```{r}
+tribble(
+  ~Column,        ~Type,    ~Meaning,
+  "measurement_id","INTEGER","Primary key (carried from slim).",
+  "subsample_id",  "INTEGER","-> subsample.",
+  "symbol",        "TEXT",   "Element, ICES name (-> element).",
+  "value",         "REAL",   "Value in the original (ICES-named) unit.",
+  "unit",          "TEXT",   "Original reporting unit.",
+  "value_std",     "REAL",   "Standardised value, mg/kg (mean where replicates were averaged).",
+  "unit_std",      "TEXT",   "Always mg/kg.",
+  "value_sd",      "REAL",   "SD across technical replicates, else NULL.",
+  "n_rep",         "INTEGER","Number of distinct replicate values averaged (1 = single).",
+  "value_uncrt",   "REAL",   "Analytical uncertainty, mg/kg (ICES-DOME only), else NULL.",
+  "matrix",        "TEXT",   "Raw ICES sediment-fraction code (provenance), where recorded.",
+  "frac_class",    "TEXT",   "Sediment fraction measured: 'bulk' (whole sample or the under-2 mm fraction) or 'sieved' (a fine sub-fraction).",
+  "sieve_um",      "REAL",   "Sieve cutoff in um for sieved rows (e.g. 63, 20), NULL for bulk.",
+  "method_id",     "INTEGER","-> method."
+) |> kable()
+```
+
+`frac_class` / `sieve_um` are derived from `matrix` (kept alongside). Bulk versus
+sieved is recorded per measurement because it varies within a subsample: a sample's
+metals and its organic carbon, and even different target metals, are often measured
+on different fractions.
+
+## subsample
+
+One row per subsample (a depth slice of a sampling event), with depth, the
+supporting-data flags, a target-fraction summary, and the mud content.
+
+```{r}
+tribble(
+  ~Column,             ~Type,     ~Meaning,
+  "subsample_id",      "INTEGER", "Primary key.",
+  "event_id",          "INTEGER", "-> event.",
+  "depth_from",        "REAL",    "Top of the slice, cm (NULL if the source's depth was removed or never recorded).",
+  "depth_to",          "REAL",    "Bottom of the slice, cm (NULL if the source's depth was removed or never recorded).",
+  "depth_flag",        "TEXT",    "'implausible' where the reported depth was out of range or inverted and was removed (Vannmiljø only); NULL otherwise. Lets a user spot and drop depth-less rows.",
+  "fe_exist",          "INTEGER", "1/0: an Fe value exists for this subsample.",
+  "al_exist",          "INTEGER", "1/0: an Al value exists.",
+  "org_exist",         "INTEGER", "1/0: an organic carbon value exists.",
+  "comp_exist",        "INTEGER", "1/0: grain-size composition exists.",
+  "target_frac_class", "TEXT",    "Fraction summary of the subsample's target measurements: 'bulk', 'sieved', or 'mixed' (targets span both). NULL if no target-metal measurement (grain-size-only, or normaliser/organic-only subsamples).",
+  "target_sieve_um",   "REAL",    "Target sieve cutoff where unambiguous, else NULL.",
+  "fines_lt63",        "REAL",    "% finer than 63 um (clay + silt mud content), else NULL.",
+  "fines_basis",       "TEXT",    "How fines_lt63 was derived."
+) |> kable()
+```
+
+The authoritative bulk/sieved value is per measurement (`measurement.frac_class`);
+`subsample.target_frac_class` is a convenience summary over the targets, with
+`mixed` marking the (few) subsamples whose target metals span both fractions.
+
+## grain_size_fraction (per fraction measurement)
+
+The grain-size distribution moved out of `measurement`. One row per grain-size
+mass-fraction value. Absent for 4Demon.
+
+```{r}
+tribble(
+  ~Column,       ~Type,    ~Meaning,
+  "gsf_id",      "INTEGER","Primary key (surrogate; the subsample_id/symbol/matrix combination is not unique).",
+  "subsample_id","INTEGER","-> subsample.",
+  "symbol",      "TEXT",   "The source's grain-size code.",
+  "matrix",      "TEXT",   "Sample fraction the value is a percentage of (where recorded).",
+  "lo_um",       "REAL",   "Lower size bound, um.",
+  "hi_um",       "REAL",   "Upper size bound, um (NULL = open, e.g. gravel).",
+  "value_pct",   "REAL",   "Corrected mass fraction, %."
+) |> kable()
+```
+
+## element
+
+Lookup mapping each chemical symbol to its name, measurand category, and CAS
+number. Referenced by both `measurement` and `method` via `symbol`.
+
+```{r}
+tribble(
+  ~Column,    ~Type,  ~Meaning,
+  "symbol",   "TEXT", "Primary key: element in the ICES name (e.g. CO, CU, CORG).",
+  "name",     "TEXT", "Full element / measurand name.",
+  "category", "TEXT", "Measurand class: target / reference / organic / composition.",
+  "cas",      "TEXT", "CAS registry number, where known."
+) |> kable()
+```
+
+## dataset
+
+One row per data-collection campaign (the provenance of a set of events).
+
+```{r}
+tribble(
+  ~Column,          ~Type,     ~Meaning,
+  "dataset_id",     "INTEGER", "Primary key.",
+  "dataset_name",   "TEXT",    "Name of the data-collection campaign / dataset.",
+  "dataset_code",   "TEXT",    "Source-native dataset code, where recorded.",
+  "dataset_group",  "TEXT",    "Dataset grouping, where recorded.",
+  "source",         "TEXT",    "Source database name (e.g. Mareano, ICES-DOME).",
+  "source_type",    "TEXT",    "Kind of source (e.g. national, international).",
+  "url",            "TEXT",    "Source URL, where recorded.",
+  "doi",            "TEXT",    "Dataset DOI, where recorded.",
+  "country",        "TEXT",    "Country of origin.",
+  "region",         "TEXT",    "Marine region, where recorded.",
+  "institute",      "TEXT",    "Institute responsible for the data.",
+  "institute_code", "TEXT",    "Institute code, where recorded.",
+  "accessed",       "TEXT",    "Date the source was accessed."
+) |> kable()
+```
+
+## site
+
+One row per geographic location, keyed (in slim) on latitude/longitude rounded to
+three decimal places.
+
+```{r}
+tribble(
+  ~Column,         ~Type,     ~Meaning,
+  "site_id",       "INTEGER", "Primary key.",
+  "latitude",      "REAL",    "Latitude in decimal degrees.",
+  "longitude",     "REAL",    "Longitude in decimal degrees.",
+  "depth",         "REAL",    "Water depth (m), where recorded.",
+  "country",       "TEXT",    "Nearest country.",
+  "country_code",  "TEXT",    "ISO country code.",
+  "dist_to_coast", "REAL",    "Distance to nearest coastline (km).",
+  "municipality",  "TEXT",    "Nearest municipality.",
+  "sea_name",      "TEXT",    "Name of the sea or ocean body."
+) |> kable()
+```
+
+## event
+
+One row per sampling event (a single deployment of a gear at a site).
+
+```{r}
+tribble(
+  ~Column,         ~Type,     ~Meaning,
+  "event_id",      "INTEGER", "Primary key.",
+  "dataset_id",    "INTEGER", "-> dataset.",
+  "site_id",       "INTEGER", "-> site.",
+  "year",          "INTEGER", "Year of the sampling event.",
+  "date",          "TEXT",    "Date of the sampling event, where recorded.",
+  "sampling_tool", "TEXT",    "Sampling gear, descriptive name.",
+  "n_layers",      "INTEGER", "Number of subsamples (depth layers) under the event."
+) |> kable()
+```
+
+`datetime` / `time` from the slim schema are dropped in the clean stage.
+
+## method
+
+One row per distinct analytical method (technique, lab, and limits) for a symbol.
+
+```{r}
+tribble(
+  ~Column,              ~Type,     ~Meaning,
+  "method_id",          "INTEGER", "Primary key.",
+  "symbol",             "TEXT",    "-> element.",
+  "method",             "TEXT",    "Analytical technique (e.g. ICP-MS, ICP-AES).",
+  "method_description", "TEXT",    "Free-text method description, where recorded.",
+  "lab",                "TEXT",    "Laboratory that performed the analysis, where recorded.",
+  "lab_name",           "TEXT",    "Full laboratory name, where recorded.",
+  "lod",                "REAL",    "Limit of detection, where recorded (Mareano's lld maps here).",
+  "loq",                "REAL",    "Limit of quantification, where recorded.",
+  "limit_unit",         "TEXT",    "Reporting unit of lod / loq."
+) |> kable()
+```
+
+All five tables are identical in structure across the sources; values are absent
+(NULL) where a source does not record a column.
+
+## What changed from slim
+
+```{r}
+tribble(
+  ~Change,                              ~Detail,
+  "Rows removed",                       "Out of range, invalid, below limit, wet weight, source-specific QC.",
+  "Duplicates / replicates collapsed",  "One value each; replicates gain value_sd + n_rep.",
+  "Grain-size out of measurement",      "Grain-size composition moves to grain_size_fraction; all chemistry (incl. organic carbon) stays in measurement.",
+  "Sediment fraction as frac_class",    "matrix gains frac_class (bulk/sieved) + sieve_um; a target bulk/sieved/mixed summary is added to subsample.",
+  "Flag columns dropped",               "The slim QC flags were consumed by the cleaning and are not carried.",
+  "Depths in cm",                       "ICES-DOME converted from metres; Vannmiljo corrupt depths nulled.",
+  "Symbols / units unified",            "ICES names; TOC -> CORG; value_std in mg/kg; CAS added to element."
+) |> kable()
+```

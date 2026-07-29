@@ -1,0 +1,39 @@
+---
+title: "Database Downloads"
+subtitle: Download links for the clean SQLite databases
+---
+
+Each source has a **clean** database (`<source>_clean.sqlite`): the QC-passed end
+product of the slim stage, with uncertain rows removed, units harmonised, and
+grain-size split into its own table. The analyses on this site read these five
+databases. Their table layout is on the
+[DB Schema (Clean)](./db-schema-clean.qmd) page.
+
+The clean databases are published as release assets on the **multised-slim**
+repository (alongside the flagged slim databases), so the download links point
+there.
+
+## Clean databases
+
+| Source | File | Download |
+|:-------|:-----|:---------|
+| Mareano | `mareano_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/mareano_clean.sqlite) |
+| Vannmiljø | `vannmiljo_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/vannmiljo_clean.sqlite) |
+| ICES-DOME | `ices_dome_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/ices_dome_clean.sqlite) |
+| MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/mudab_clean.sqlite) |
+| 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/4demon_clean.sqlite) |
+
+: Clean databases {.striped .hover tbl-colwidths="[25,45,30]"}
+
+## Merged database
+
+The final **merged** database, combining all five sources into one, will be
+published here once the cross-source merge is complete.
+
+::: {.callout-note}
+Each file is a self-contained SQLite database. For the table definitions see the
+[DB Schema (Clean)](./db-schema-clean.qmd) page; for how the clean databases are
+built from the slim stage, see the
+[slim site](https://seafood-hazards.github.io/multised-slim/) under **Clean
+databases**.
+:::

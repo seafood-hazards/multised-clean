@@ -1,0 +1,36 @@
+project:
+  type: website
+  render:
+    - "*.qmd"
+    - "!README.md"
+    - "!CLAUDE.md"
+
+website:
+  title: "multised (clean)"
+  navbar:
+    search: true
+    right:
+      - icon: github
+        href: https://github.com/seafood-hazards/multised-clean
+        aria-label: GitHub
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "DB Design"
+        menu:
+          - text: "DB Schema (Clean)"
+            href: db-schema-clean.qmd
+          - text: "Database Downloads"
+            href: database-downloads.qmd
+
+format:
+  html:
+    theme: cosmo
+    css: styles.css
+    toc: true
+    df-print: kable
+
+execute:
+  echo: false
+  warning: false
+  message: false

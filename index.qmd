@@ -1,0 +1,79 @@
+---
+title: "multised (clean analyses)"
+subtitle: "Analyses on the QC-passed marine-sediment databases"
+---
+
+**multised** assembles a database of marine-sediment trace-element measurements
+from five external sources, harmonises them into a common schema, and
+progressively quality-controls the result. This site documents the final stage:
+the **analyses performed on** the clean (QC-passed) databases, ending in a single
+merged database for the background / pristine-sediment work.
+
+How the clean databases are built (harmonisation, cleaning, and the grain-size
+split) is documented separately on the
+[slim site](https://seafood-hazards.github.io/multised-slim/), under **Clean
+databases**.
+
+## Data sources
+
+```{r}
+library(tibble)
+library(knitr)
+
+sources_tbl <- tribble(
+  ~Source,      ~Origin,          ~Notes,
+  "Mareano",    "Norway / IMR",   "Norwegian cruise data.",
+  "Vannmiljø",  "Norway",         "Norwegian environmental monitoring.",
+  "ICES-DOME",  "International",   "Rich sediment-composition data.",
+  "MUDAB",      "Germany",        "German marine environmental database.",
+  "4Demon",     "Belgium",        "Compiled historical Baltic / North Sea data (Belgian)."
+)
+
+kable(sources_tbl)
+```
+
+## Pipeline generations
+
+The data moves through four generations, each one SQLite database **per source**
+until the final merge:
+
+1. **pilot**: each source's raw files parsed into a per-source database whose
+   table structure follows that source. Documented on the individual pilot sites.
+2. **slim**: every source reshaped into the same seven-table schema, then
+   annotated with quality-control and marking flags (values untouched, suspicious
+   records flagged rather than deleted). Documented on the
+   [slim site](https://seafood-hazards.github.io/multised-slim/).
+3. **clean** *(the input to this site)*: the flags are applied (uncertain rows
+   removed), units are harmonised, and grain-size is split into its own table.
+   Five per-source `<source>_clean.sqlite` databases.
+4. **merged** *(the goal of this site)*: the five clean databases are combined
+   into a single database for the background / pristine-sediment analysis.
+
+## What this site covers
+
+The analyses read the five clean databases and build towards the merged database.
+The pages are grouped in the navigation bar:
+
+**DB Design**
+
+- [DB Schema (Clean)](./db-schema-clean.qmd): the table layout of the clean
+  databases these analyses read, with the entity-relationship diagram.
+- [Database Downloads](./database-downloads.qmd): download links for the five
+  clean SQLite databases.
+
+**Analyses** (added as each is completed)
+
+```{r}
+tribble(
+  ~Analysis,                                      ~Status,
+  "Iron / aluminium normalisation",               "planned",
+  "Grain-size distribution analysis",             "planned",
+  "Cross-source merge into one database",         "planned",
+  "Background and pristine sediment definition",  "planned"
+) |> kable()
+```
+
+::: {.callout-note}
+Results will be added here as each analysis is completed. The analysis pages read
+the clean databases live at render time.
+:::
