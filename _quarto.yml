@@ -36,6 +36,8 @@ website:
             href: organic-carbon.qmd
           - text: "Synthesis"
             href: synthesis.qmd
+          - text: "Depth and coast"
+            href: spatial.qmd
 
 format:
   html:

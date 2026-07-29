@@ -1,0 +1,118 @@
+---
+title: "Depth and distance to coast"
+subtitle: "How the geographic setting relates to enrichment and the normalisers"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Do the geographic attributes **depth** and **distance to coast** affect the
+normalisation? Two questions, on bulk samples, per source:
+
+- **(B, the point)** does the **enrichment** (metal / Al) change offshore and with
+  depth? A ratio that falls offshore is the coastal-pollution gradient the pristine
+  background rests on: cleaner offshore sediment.
+- **(A, a check)** do the **normalisers and covariates** themselves (Al, Fe,
+  organic carbon, fines) vary with depth and distance to coast?
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+sdir <- "data/analysis/spatial"
+enr  <- read_csv(file.path(sdir, "spatial_enrichment.csv"), show_col_types = FALSE)
+nrm  <- read_csv(file.path(sdir, "spatial_normaliser.csv"), show_col_types = FALSE)
+prs  <- read_csv(file.path(sdir, "spatial_pairs.csv"),      show_col_types = FALSE)
+
+src_levels <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+ord_src <- function(x) factor(x, levels = src_levels)
+theme_set(theme_minimal(base_size = 12))
+```
+
+## B. Enrichment (metal / Al) versus depth and distance to coast
+
+Spearman correlation of the metal/Al ratio with distance to coast and with depth
+(bulk samples, at least 30 per group). **Negative means the ratio falls offshore /
+with depth, i.e. cleaner offshore.** Zinc shows this most strongly and
+consistently, copper too; the redox-controlled Mo does not follow it.
+
+```{r}
+#| label: b-table
+enr |>
+  filter(normaliser == "Al") |>
+  select(Source, symbol, variable, rho) |>
+  pivot_wider(names_from = variable, values_from = rho) |>
+  transmute(Source = ord_src(Source), Element = symbol,
+            `rho vs coast` = dist_to_coast, `rho vs depth` = depth) |>
+  arrange(Source, Element) |>
+  kable()
+```
+
+```{r}
+#| label: b-heatmap
+#| fig-cap: "Metal/Al vs distance to coast (Spearman rho). Red = ratio falls offshore (coastal enrichment), blue = rises, grey = none."
+#| fig-width: 6.5
+#| fig-height: 3.6
+enr |>
+  filter(normaliser == "Al", variable == "dist_to_coast") |>
+  ggplot(aes(ord_src(Source), symbol, fill = rho)) +
+  geom_tile(colour = "white", linewidth = 1) +
+  geom_text(aes(label = sprintf("%.2f", rho), colour = abs(rho) > 0.4),
+            size = 3.4, show.legend = FALSE) +
+  scale_fill_gradient2(low = "#CC3311", mid = "grey92", high = "#4477AA",
+                       midpoint = 0, limits = c(-0.8, 0.8), name = "rho") +
+  scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "grey20")) +
+  labs(x = NULL, y = NULL) +
+  theme(panel.grid = element_blank())
+```
+
+```{r}
+#| label: b-scatter
+#| fig-cap: "ICES-DOME: the zinc/Al ratio against distance to coast (log y, linear fit)."
+#| fig-width: 6.5
+#| fig-height: 3
+prs |>
+  filter(Source == "ICES-DOME", symbol == "ZN",
+         !is.na(ratio_AL), ratio_AL > 0, !is.na(dist_to_coast)) |>
+  ggplot(aes(dist_to_coast, ratio_AL)) +
+  geom_point(alpha = 0.15, size = 0.5, colour = "#4477AA") +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "#AA3377", se = FALSE) +
+  scale_y_log10() +
+  labs(x = "distance to coast (km)", y = "Zn / Al (log)")
+```
+
+The offshore decline in metal/Al (clearest for Zn and Cu) means the most enriched
+sediment sits near the coast and the offshore floor is the natural background
+candidate, which is what the merged-stage pristine definition will lean on.
+
+## A. Do the normalisers themselves vary with depth and coast?
+
+Spearman correlation of Al, Fe, organic carbon and fines with depth and distance to
+coast. There is spatial structure, but its sign and strength **differ by source**
+(for example Al rises offshore in MUDAB but falls in ICES-DOME), so depth and coast
+are not a single, transferable effect: they are confounded with each region's grain
+size, and are best handled per source.
+
+```{r}
+#| label: a-table
+nrm |>
+  select(Source, factor, variable, rho) |>
+  pivot_wider(names_from = variable, values_from = rho) |>
+  transmute(Source = ord_src(Source), Factor = factor,
+            `rho vs coast` = dist_to_coast, `rho vs depth` = depth) |>
+  arrange(Source, Factor) |>
+  kable()
+```
+
+::: {.callout-note}
+Depth and distance to coast are strongly collinear (offshore is deeper) and both
+co-vary with grain size, so these are associations, not isolated effects;
+separating them needs a multivariate model, a later step. Depth is modelled (GEBCO)
+and absent on land-rounded sites. Vannmiljø rarely measures Al, so its metal/Al
+rows rest on few samples and should be read with caution.
+:::
