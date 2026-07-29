@@ -26,6 +26,8 @@ website:
         menu:
           - text: "Grain size"
             href: grain-size.qmd
+          - text: "Fe/Al normalisation"
+            href: normalisation.qmd
 
 format:
   html:

@@ -1,0 +1,141 @@
+---
+title: "Fe/Al normalisation"
+subtitle: "Normalising the target metals to aluminium and iron"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Finer, more aluminosilicate-rich sediment carries more of both the lithogenic
+normalisers (aluminium, iron) and the trace metals, so dividing a metal by Al (or
+Fe) corrects that grain-size and mineralogical variation. A strong metal to
+normaliser relationship means the metal is naturally (lithogenically) controlled,
+which is the baseline the enrichment-factor / pristine determination rests on (that
+cutoff is a later, merged-stage step; this page establishes the normalisation
+itself).
+
+The analysis is run **separately per source** in the `sedimenter` pipeline
+(`R/analysis/normalisation/`). Each target is paired with the Al and Fe measured on
+the **same subsample and same fraction** (bulk with bulk, sieved with sieved),
+since normalisation is only valid within a comparable fraction. All depths are
+kept, reported by the EFSA depth bands.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+ndir <- "data/analysis/normalisation"
+avail <- read_csv(file.path(ndir, "normalisation_availability.csv"), show_col_types = FALSE)
+corr  <- read_csv(file.path(ndir, "normalisation_correlation.csv"),  show_col_types = FALSE)
+ratio <- read_csv(file.path(ndir, "normalisation_ratios.csv"),       show_col_types = FALSE)
+pairs <- read_csv(file.path(ndir, "normalisation_pairs.csv"),        show_col_types = FALSE)
+
+src_levels  <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+band_levels <- c("0-5", "5-40", ">40", "unknown")
+ord_src <- function(x) factor(x, levels = src_levels)
+theme_set(theme_minimal(base_size = 12))
+```
+
+## 1. Can the data be normalised?
+
+How much of the target data carries a co-located Al or Fe value (same subsample,
+same fraction), per source and depth band. Mareano measures Fe and Al with every
+target; ICES-DOME, MUDAB and 4Demon cover most targets; Vannmiljø rarely does, so
+it is essentially not normalisable.
+
+```{r}
+#| label: avail-table
+avail |>
+  mutate(Source = ord_src(Source), band = factor(band, levels = band_levels)) |>
+  arrange(Source, band) |>
+  select(Source, band, n_target, `% with Al` = pct_AL, `% with Fe` = pct_FE) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+## 2. How well does each normaliser work?
+
+The r-squared of a log-log fit of metal against normaliser (bulk samples, at least
+10 pairs). High values mean the metal is grain-size / mineralogically controlled,
+so the normaliser is a sound baseline. **CO, CU and ZN** normalise well; **MN** is
+weaker (it is redox-mobile); **MO and SE** are essentially uncorrelated, so
+Al/Fe normalisation does not apply to them.
+
+```{r}
+#| label: strength-table
+corr |>
+  filter(frac_class == "bulk") |>
+  select(Source, symbol, normaliser, r2) |>
+  pivot_wider(names_from = normaliser, values_from = r2) |>
+  transmute(Source = ord_src(Source), Element = symbol,
+            `r2 (Al)` = AL, `r2 (Fe)` = FE) |>
+  arrange(Source, Element) |>
+  kable()
+```
+
+```{r}
+#| label: strength-fig
+#| fig-cap: "Log-log metal to normaliser fit strength (r-squared) in bulk samples, per source."
+#| fig-width: 8
+#| fig-height: 4
+corr |>
+  filter(frac_class == "bulk", Source %in% c("Mareano", "ICES-DOME", "MUDAB")) |>
+  ggplot(aes(symbol, r2, fill = normaliser)) +
+  geom_col(position = position_dodge()) +
+  scale_fill_manual(values = c(AL = "#4477AA", FE = "#EE6677")) +
+  facet_wrap(~ factor(Source, levels = src_levels)) +
+  labs(x = NULL, y = "r-squared (log-log)", fill = "normaliser") +
+  ylim(0, 1)
+```
+
+## 3. The lithogenic relationship
+
+For the well-behaved metals, concentration scales with Al along a tight log-log
+line, the natural (lithogenic) baseline. Mareano (single source, bulk, clean)
+shows it most clearly; points well above the line would be candidates for
+enrichment.
+
+```{r}
+#| label: scatter-fig
+#| fig-cap: "Mareano bulk target concentration against aluminium (log-log, linear fit)."
+#| fig-width: 8
+#| fig-height: 3
+pairs |>
+  filter(Source == "Mareano", frac_class == "bulk",
+         symbol %in% c("CO", "CU", "ZN"),
+         !is.na(AL), AL > 0, value_std > 0) |>
+  ggplot(aes(AL, value_std)) +
+  geom_point(alpha = 0.15, size = 0.6, colour = "#4477AA") +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "#AA3377", se = FALSE) +
+  scale_x_log10() +
+  scale_y_log10() +
+  facet_wrap(~ symbol, scales = "free_y") +
+  labs(x = "Al (mg/kg, log)", y = "concentration (mg/kg, log)")
+```
+
+## 4. Normalised values (metal / Al)
+
+The median metal-to-Al ratio (bulk samples), the normalised concentration on which
+a local background and enrichment factor would later be built.
+
+```{r}
+#| label: ratio-table
+ratio |>
+  filter(frac_class == "bulk", normaliser == "AL") |>
+  transmute(Source = ord_src(Source), Element = symbol, n,
+            `median Me/Al` = median, p25, p75) |>
+  arrange(Source, Element) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+::: {.callout-note}
+Normalisation applies to the grain-size-controlled metals (CO, CU, ZN, and to a
+lesser extent MN). Molybdenum and selenium are not lithogenically controlled, so
+their Fe/Al fits are near zero and normalisation is not appropriate for them; they
+are kept in the tables for completeness. The enrichment factor and pristine cutoff
+are built on these normalised values at the later merged / background stage.
+:::
