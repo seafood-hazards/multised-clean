@@ -1,0 +1,148 @@
+---
+title: "Site locations"
+subtitle: "Location attributes recomputed consistently with geoenrich"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Each site's location attributes were recomputed with the
+[geoenrich](https://github.com/AIQC-Hub/geoenrich) command-line tool and written
+back into the clean `site` tables, so that all five sources carry **one consistent
+set of location values** (derived the same way from the same reference data) rather
+than each source's own. This matters for the later cross-source merge: a site off
+the Norwegian coast should get the same depth, sea and distance-to-coast whether it
+came from Mareano or ICES-DOME.
+
+The step runs in the `sedimenter` pipeline (`R/clean/geo_enrich.R`): it exports the
+site coordinates, runs geoenrich, and replaces six columns.
+
+```{r}
+#| label: setup
+library(DBI)
+library(RSQLite)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+sources <- tibble(
+  Source = c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon"),
+  stem   = c("mareano", "vannmiljo", "ices_dome", "mudab", "4demon"))
+src_levels <- sources$Source
+ord_src <- function(x) factor(x, levels = src_levels)
+pal <- c("Mareano" = "#4477AA", "Vannmiljø" = "#66CCEE", "ICES-DOME" = "#228833",
+         "MUDAB" = "#CCBB44", "4Demon" = "#EE6677")
+
+read_site <- function(stem) {
+  con <- dbConnect(SQLite(), sprintf("data/db/%s_clean.sqlite", stem))
+  on.exit(dbDisconnect(con))
+  as_tibble(dbReadTable(con, "site"))
+}
+site <- bind_rows(lapply(seq_len(nrow(sources)), function(i)
+  read_site(sources$stem[i]) |> mutate(Source = sources$Source[i])))
+theme_set(theme_minimal(base_size = 12))
+```
+
+## What was recomputed
+
+Six columns are replaced with geoenrich output; `site_id`, `latitude` and
+`longitude` are untouched.
+
+```{r}
+#| label: what-table
+tribble(
+  ~Column,          ~Source_dataset,           ~Meaning,
+  "dist_to_coast",  "GSHHG (full resolution)", "Distance to the nearest shoreline, km.",
+  "depth",          "GEBCO 2024",              "Sea-floor depth, m positive-down. Points on land are set to NULL.",
+  "sea_name",       "IHO Sea Areas",           "Name of the sea or ocean body.",
+  "country",        "Natural Earth",           "Nearest country.",
+  "country_code",   "Natural Earth",           "ISO 3166-1 alpha-3 (NOR, DEU, GBR).",
+  "municipality",   "GISCO LAU (Europe)",      "Nearest municipality (Europe only)."
+) |>
+  rename(`Source dataset` = Source_dataset) |>
+  kable()
+```
+
+## Coverage per source
+
+```{r}
+#| label: coverage-table
+site |>
+  group_by(Source) |>
+  summarise(
+    sites = n(),
+    `depth known` = sum(!is.na(depth)),
+    `depth NULL (land)` = sum(is.na(depth)),
+    `median depth (m)` = round(median(depth, na.rm = TRUE)),
+    `median coast (km)` = round(median(dist_to_coast), 1),
+    countries = n_distinct(country),
+    seas = n_distinct(sea_name),
+    .groups = "drop") |>
+  mutate(Source = ord_src(Source)) |>
+  arrange(Source) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+Depth is NULL where a coordinate rounds onto land (fjord or estuary edges, and a
+small tail of inland or mis-entered coordinates); all other depths are genuine
+sea-floor values.
+
+## Countries and seas
+
+The dominant countries and seas per source, reflecting each source's region
+(Mareano and Vannmiljø Norwegian, MUDAB German, 4Demon Belgian, ICES-DOME
+international).
+
+```{r}
+#| label: country-sea-table
+top_n_str <- function(df, col) {
+  df |> filter(!is.na(.data[[col]])) |> count(Source, value = .data[[col]]) |>
+    group_by(Source) |> slice_max(n, n = 3, with_ties = FALSE) |>
+    summarise(s = paste0(value, " (", n, ")", collapse = ", "), .groups = "drop")
+}
+left_join(top_n_str(site, "country"), top_n_str(site, "sea_name"),
+          by = "Source", suffix = c("_country", "_sea")) |>
+  transmute(Source = ord_src(Source),
+            `Top countries` = s_country, `Top seas` = s_sea) |>
+  arrange(Source) |>
+  kable()
+```
+
+## Geographic spread
+
+```{r}
+#| label: map-fig
+#| fig-cap: "Site coordinates coloured by source (no basemap; longitude / latitude)."
+#| fig-width: 8
+#| fig-height: 5
+ggplot(site, aes(longitude, latitude, colour = ord_src(Source))) +
+  geom_point(alpha = 0.3, size = 0.4) +
+  scale_colour_manual(values = pal) +
+  coord_quickmap() +
+  guides(colour = guide_legend(override.aes = list(alpha = 1, size = 2))) +
+  labs(x = "longitude", y = "latitude", colour = "Source")
+```
+
+```{r}
+#| label: coast-fig
+#| fig-cap: "Distance to coast by source (log scale)."
+#| fig-width: 7
+#| fig-height: 3
+ggplot(site, aes(ord_src(Source), dist_to_coast)) +
+  geom_boxplot(outlier.size = 0.3, fill = "#4477AA", alpha = 0.5) +
+  scale_y_log10() +
+  coord_flip() +
+  labs(x = NULL, y = "distance to coast (km, log)")
+```
+
+::: {.callout-note}
+Some caveats of the recomputed values. Depth is GEBCO bathymetry, so it replaces
+each source's originally reported (sometimes measured) depth with a single modelled
+value for comparability; land coordinates give no depth and are NULL. The
+municipality is the *nearest* one from the European GISCO dataset, so an offshore
+or non-European site can be assigned a distant coastal municipality. A small number
+of sites sit well inland (for example an ICES coordinate on a Norwegian mountain),
+which points to bad source coordinates worth flagging separately.
+:::

@@ -22,6 +22,8 @@ website:
             href: db-schema-clean.qmd
           - text: "Database Downloads"
             href: database-downloads.qmd
+          - text: "Site locations"
+            href: site-locations.qmd
       - text: "Analyses"
         menu:
           - text: "Grain size"
