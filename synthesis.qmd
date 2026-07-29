@@ -1,0 +1,112 @@
+---
+title: "Synthesis"
+subtitle: "Which control governs each element"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+The three analyses each test one control on the target-metal concentrations: grain
+size (the <63 µm fines), the Fe/Al normalisers, and organic carbon. This page ties
+them together with one comparable statistic per element, to say which control
+governs which metal.
+
+For every control we take the **Spearman correlation of concentration with that
+control in bulk samples**, computed per source (at least 30 bulk pairs) and then
+taken as the **median across sources**, so no single source dominates. A high
+positive value means the metal tracks that control.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+g <- read_csv("data/analysis/grainsize/grainsize_targets_fines.csv", show_col_types = FALSE)
+n <- read_csv("data/analysis/normalisation/normalisation_pairs.csv",  show_col_types = FALSE)
+o <- read_csv("data/analysis/organic/organic_pairs.csv",              show_col_types = FALSE)
+
+MIN_N <- 30L
+elem_levels    <- c("CO", "MN", "ZN", "CU", "MO", "SE", "I")
+control_levels <- c("Fines", "Al", "Fe", "CORG")
+
+# median (across sources) Spearman rho of concentration vs a control, bulk only
+control_rho <- function(df, col, label) {
+  df |>
+    filter(frac_class == "bulk", value_std > 0, !is.na(.data[[col]])) |>
+    group_by(Source, symbol) |>
+    filter(n() >= MIN_N) |>
+    summarise(rho = cor(.data[[col]], value_std, method = "spearman"), .groups = "drop") |>
+    group_by(symbol) |>
+    summarise(control = label, rho = median(rho), n_sources = n(), .groups = "drop")
+}
+
+synth <- bind_rows(
+  control_rho(g, "fines_lt63", "Fines"),
+  control_rho(n, "AL",         "Al"),
+  control_rho(n, "FE",         "Fe"),
+  control_rho(o, "CORG",       "CORG")) |>
+  mutate(symbol  = factor(symbol,  levels = elem_levels),
+         control = factor(control, levels = control_levels))
+```
+
+## Control strength per element
+
+Median Spearman correlation of concentration with each control (bulk samples).
+Iodine does not appear: too few bulk samples carry these controls.
+
+```{r}
+#| label: synth-table
+synth |>
+  select(symbol, control, rho) |>
+  pivot_wider(names_from = control, values_from = rho) |>
+  arrange(symbol) |>
+  rename(Element = symbol) |>
+  mutate(across(where(is.numeric), ~ round(.x, 2))) |>
+  kable()
+```
+
+## Heatmap
+
+```{r}
+#| label: synth-heatmap
+#| fig-cap: "Association of each metal with each control (median Spearman rho, bulk). Blue = concentration rises with the control, red = falls, grey = none."
+#| fig-width: 6.5
+#| fig-height: 4
+ggplot(synth, aes(control, symbol, fill = rho)) +
+  geom_tile(colour = "white", linewidth = 1) +
+  geom_text(aes(label = sprintf("%.2f", rho),
+                colour = abs(rho) > 0.5), size = 3.6, show.legend = FALSE) +
+  scale_fill_gradient2(low = "#CC3311", mid = "grey92", high = "#4477AA",
+                       midpoint = 0, limits = c(-0.8, 0.8), name = "Spearman rho") +
+  scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "grey20")) +
+  scale_x_discrete(position = "top") +
+  labs(x = NULL, y = NULL) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid = element_blank(), legend.position = "right")
+```
+
+## What governs each metal
+
+- **Cobalt and manganese** are **lithogenic**: they track the fines and the Fe/Al
+  normalisers (cobalt strongest on iron), and only weakly organic carbon. Fe/Al
+  normalisation is the right correction for them.
+- **Copper and zinc** respond to **everything**: strong on Fe/Al and on organic
+  carbon, and positive with fines. Both a normaliser and organic carbon carry real
+  signal, so either can anchor a background.
+- **Molybdenum** is **organic / redox controlled**: it correlates with organic
+  carbon but not with Fe or Al, and is actually negative with fines. Fe/Al
+  normalisation does not apply; organic carbon is its natural covariate.
+- **Selenium** is weak on every control (and sparse), and **iodine** has too few
+  bulk samples to place. Neither has a clear single control here.
+
+::: {.callout-note}
+One comparable statistic (Spearman rho, bulk samples, median across sources) is used
+so the three controls can be read side by side; it is an association summary, not
+the fitted normalisation model on each analysis page. Selenium and iodine are
+data-limited. This split (lithogenic vs organic) guides which control to use per
+element when a local background is defined at the merged stage.
+:::
