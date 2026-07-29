@@ -1,0 +1,179 @@
+---
+title: "Grain size"
+subtitle: "Sediment fraction and the <63 µm fines behind the target-element concentrations"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Trace-element concentrations in sediment depend strongly on grain size: finer
+material concentrates metals, so a **sieved <63 µm** analysis is not comparable
+to a **bulk** (whole-sample) one. Following the EFSA data specification, this page
+characterises, **separately per source**, how the target measurements split
+between bulk and sieved, how much fine (<63 µm) material the samples carry, and how
+concentration tracks grain size. All depths are kept but reported by the EFSA depth
+bands (0 to 5, 5 to 40, over 40 cm), assigned from the subsample interval midpoint.
+
+The analysis itself is run in the `sedimenter` pipeline
+(`R/analysis/grainsize/`); this page renders the summary tables and figures from
+its outputs.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+gdir <- "data/analysis/grainsize"
+frac  <- read_csv(file.path(gdir, "grainsize_fraction_summary.csv"), show_col_types = FALSE)
+fines <- read_csv(file.path(gdir, "grainsize_fines_summary.csv"),    show_col_types = FALSE)
+concf <- read_csv(file.path(gdir, "grainsize_conc_vs_fines.csv"),    show_col_types = FALSE)
+bvs   <- read_csv(file.path(gdir, "grainsize_bulk_vs_sieved.csv"),   show_col_types = FALSE)
+pts   <- read_csv(file.path(gdir, "grainsize_targets_fines.csv"),    show_col_types = FALSE)
+
+src_levels  <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+band_levels <- c("0-5", "5-40", ">40", "unknown")
+ord_src  <- function(x) factor(x, levels = src_levels)
+theme_set(theme_minimal(base_size = 12))
+```
+
+## 1. Sample fraction: bulk vs sieved
+
+How the target measurements divide between bulk (whole sample or the under-2 mm
+fraction) and sieved (a fine sub-fraction). Mareano and Vannmiljø report only bulk;
+MUDAB and 4Demon are dominated by sieved; ICES-DOME carries both.
+
+```{r}
+#| label: fraction-table
+frac |>
+  group_by(Source, frac_class) |>
+  summarise(n = sum(n), .groups = "drop") |>
+  pivot_wider(names_from = frac_class, values_from = n, values_fill = 0) |>
+  mutate(Source = ord_src(Source),
+         total = bulk + sieved,
+         `% sieved` = round(100 * sieved / total)) |>
+  arrange(Source) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+```{r}
+#| label: fraction-fig
+#| fig-cap: "Share of target measurements analysed on bulk versus sieved sediment, per source."
+#| fig-width: 7
+#| fig-height: 3.2
+frac |>
+  group_by(Source, frac_class) |>
+  summarise(n = sum(n), .groups = "drop") |>
+  group_by(Source) |>
+  mutate(share = n / sum(n)) |>
+  ungroup() |>
+  ggplot(aes(ord_src(Source), share, fill = frac_class)) +
+  geom_col() +
+  scale_y_continuous(labels = scales::percent) +
+  scale_fill_manual(values = c(bulk = "#4477AA", sieved = "#CCBB44")) +
+  labs(x = NULL, y = "share of measurements", fill = NULL) +
+  coord_flip()
+```
+
+## 2. The <63 µm fines
+
+The percentage of material finer than 63 µm (the clay + silt mud), per source and
+depth band. Only the grain-size sources carry it (4Demon has none). `mud_dominated`
+counts subsamples at least 50 % fines.
+
+```{r}
+#| label: fines-table
+fines |>
+  mutate(Source = ord_src(Source),
+         band = factor(band, levels = band_levels)) |>
+  arrange(Source, band) |>
+  select(Source, band, n_subsamples, n_with_fines,
+         mean, median, p25, p75, mud_dominated) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+## 3. Bulk versus sieved concentration
+
+For the sources that carry both fractions (ICES-DOME, MUDAB), the sieved <63 µm
+concentration sits well above the bulk one for the grain-size-controlled metals
+(CO, CU, MN, ZN), typically two to three times higher. Molybdenum is the exception
+(redox / organic controlled, not grain-size controlled), so its sieved values are
+not elevated.
+
+```{r}
+#| label: bvs-table
+bvs |>
+  filter(Source %in% c("ICES-DOME", "MUDAB")) |>
+  select(Source, symbol, frac_class, n, median) |>
+  pivot_wider(names_from = frac_class, values_from = c(n, median)) |>
+  transmute(Source = ord_src(Source), Element = symbol,
+            `n bulk` = n_bulk, `n sieved` = n_sieved,
+            `median bulk` = median_bulk, `median sieved` = median_sieved,
+            `sieved / bulk` = round(median_sieved / median_bulk, 1)) |>
+  arrange(Source, Element) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+```{r}
+#| label: bvs-fig
+#| fig-cap: "Median target concentration by fraction, for the sources carrying both (log scale)."
+#| fig-width: 7.5
+#| fig-height: 3.6
+bvs |>
+  filter(Source %in% c("ICES-DOME", "MUDAB"),
+         symbol %in% c("CO", "CU", "MN", "MO", "ZN")) |>
+  ggplot(aes(symbol, median, fill = frac_class)) +
+  geom_col(position = position_dodge()) +
+  scale_y_log10() +
+  scale_fill_manual(values = c(bulk = "#4477AA", sieved = "#CCBB44")) +
+  facet_wrap(~ Source) +
+  labs(x = NULL, y = "median concentration (mg/kg, log)", fill = NULL)
+```
+
+## 4. The grain-size effect (bulk samples)
+
+Within **bulk** samples, where the reported value describes the whole sample,
+concentration rises with the fines content, as expected. The table gives the
+Spearman correlation of concentration with `fines_lt63` per element and band
+(bulk only, at least 10 samples); the figure shows it for Mareano, whose bulk,
+clean grain-size gives the clearest signal.
+
+```{r}
+#| label: concf-table
+concf |>
+  filter(band %in% c("0-5", "5-40")) |>
+  select(Source, symbol, band, n, rho) |>
+  pivot_wider(names_from = band, values_from = c(n, rho)) |>
+  transmute(Source = ord_src(Source), Element = symbol,
+            `n (0-5)` = `n_0-5`, `rho (0-5)` = `rho_0-5`,
+            `n (5-40)` = `n_5-40`, `rho (5-40)` = `rho_5-40`) |>
+  arrange(Source, Element) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+```{r}
+#| label: concf-fig
+#| fig-cap: "Mareano bulk target concentrations against the <63 µm fines content (log y, linear fit)."
+#| fig-width: 7.5
+#| fig-height: 3
+pts |>
+  filter(Source == "Mareano", frac_class == "bulk",
+         symbol %in% c("CO", "CU", "ZN"),
+         !is.na(fines_lt63), value_std > 0) |>
+  ggplot(aes(fines_lt63, value_std)) +
+  geom_point(alpha = 0.15, size = 0.6, colour = "#4477AA") +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "#AA3377", se = FALSE) +
+  scale_y_log10() +
+  facet_wrap(~ symbol, scales = "free_y") +
+  labs(x = "fines <63 µm (%)", y = "concentration (mg/kg, log)")
+```
+
+::: {.callout-note}
+The grain-size effect is measured on bulk samples only: a sieved <63 µm value is of
+the fine fraction, not the whole sample, so relating it to the whole-sample fines
+would not be meaningful. Molybdenum, selenium and iodine are kept in the tables but
+are noisier (low counts, and not purely grain-size controlled).
+:::

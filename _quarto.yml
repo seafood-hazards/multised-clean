@@ -22,6 +22,10 @@ website:
             href: db-schema-clean.qmd
           - text: "Database Downloads"
             href: database-downloads.qmd
+      - text: "Analyses"
+        menu:
+          - text: "Grain size"
+            href: grain-size.qmd
 
 format:
   html:
