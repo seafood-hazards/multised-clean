@@ -38,6 +38,22 @@ dest_of <- function(asset) {
   file.path("data/analysis", module, asset)
 }
 
+# Download with retries: the GitHub -> asset-host redirect occasionally throws a
+# transient SSL / connection error on CI, so retry a few times with backoff and
+# discard any partial file between attempts.
+download_retry <- function(url, dest, tries = 5) {
+  for (i in seq_len(tries)) {
+    ok <- tryCatch(
+      suppressWarnings(utils::download.file(url, dest, mode = "wb", quiet = TRUE)),
+      error = function(e) { message("  attempt ", i, " failed: ", conditionMessage(e)); 1L })
+    if (identical(as.integer(ok), 0L) && file.exists(dest) && file.size(dest) > 0)
+      return(invisible(TRUE))
+    if (file.exists(dest)) file.remove(dest)   # drop partial before retrying
+    if (i < tries) Sys.sleep(2 * i)
+  }
+  stop("failed to download after ", tries, " attempts: ", url)
+}
+
 for (asset in assets) {
   dest <- dest_of(asset)
   if (file.exists(dest)) {
@@ -47,8 +63,5 @@ for (asset in assets) {
   dir.create(dirname(dest), recursive = TRUE, showWarnings = FALSE)
   url <- sprintf("%s/%s", base, asset)
   message("download: ", url)
-  ok <- utils::download.file(url, dest, mode = "wb", quiet = TRUE)
-  if (ok != 0 || !file.exists(dest)) {
-    stop("failed to download ", url)
-  }
+  download_retry(url, dest)
 }
