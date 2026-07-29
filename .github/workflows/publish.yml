@@ -42,7 +42,12 @@ jobs:
             any::dplyr
             any::tidyr
             any::tibble
+            any::readr
+            any::ggplot2
+            any::scales
 
+      # pre-render (download-data.R) fetches the databases and analysis outputs;
+      # the pages read them; post-render (cleanup-data.R) removes them (CI=true).
       - name: Render site
         run: quarto render
 

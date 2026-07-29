@@ -1,5 +1,7 @@
 project:
   type: website
+  pre-render: _scripts/download-data.R
+  post-render: _scripts/cleanup-data.R
   render:
     - "*.qmd"
     - "!README.md"
