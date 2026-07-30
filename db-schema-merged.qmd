@@ -1,0 +1,278 @@
+---
+title: "DB Schema (Merged)"
+subtitle: "The tables and columns of the single merged database"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+.mermaid { max-width: 620px; margin-left: auto; margin-right: auto; }
+.mermaid svg { max-width: 100% !important; width: 100%; height: auto; }
+```
+
+The **merged** database (`multised_merged.sqlite`) combines the five clean databases
+into one, with cross-source duplicates removed. It keeps the same eight tables and
+the same relationships as the [clean schema](./db-schema-clean.qmd); this page lists
+only what the merge **adds**. How it is built is on the merged-database pages
+([union](./merge-union.qmd), [deduplication](./merge-dedup.qmd),
+[finalise and retention](./merge-retention.qmd)).
+
+## What the merge adds
+
+Every table except the shared `element` lookup gains two provenance columns, and the
+`measurement` table gains a harmonised sieve cutoff:
+
+- **`source`** (TEXT): which source database the row came from (Mareano, 4Demon,
+  MUDAB, Vannmiljø, ICES-DOME).
+- **`src_<table>_id`** (TEXT): the row's original source-prefixed key (e.g.
+  `ice_107870`), kept so a merged row can be traced back to its clean database.
+- **`sieve_um_std`** / **`sieve_class`** on `measurement`: a canonical sieve cutoff
+  (62 folded to 63) and its label (`<63um`, `<20um`), so like-cutoff sieved data can
+  be compared. NULL for bulk.
+
+The primary keys are renumbered to clean contiguous integers across the whole merged
+database (the source-prefixed keys survive only in the `src_*_id` columns). Bulk and
+sieved are kept as separate tracks, as in the clean stage.
+
+## Schema diagram
+
+The structure is identical to the clean schema.
+
+```{mermaid}
+erDiagram
+  dataset   ||--o{ event               : "dataset_id"
+  site      ||--o{ event               : "site_id"
+  event     ||--o{ subsample           : "event_id"
+  subsample ||--o{ measurement         : "subsample_id"
+  subsample ||--o{ grain_size_fraction : "subsample_id"
+  element   ||--o{ measurement         : "symbol"
+  element   ||--o{ method              : "symbol"
+  method    ||--o{ measurement         : "method_id"
+
+  element {
+    TEXT symbol PK
+  }
+  dataset {
+    INTEGER dataset_id PK
+    TEXT source
+  }
+  site {
+    INTEGER site_id PK
+    TEXT source
+  }
+  event {
+    INTEGER event_id PK
+    INTEGER dataset_id FK
+    INTEGER site_id FK
+    TEXT source
+  }
+  subsample {
+    INTEGER subsample_id PK
+    INTEGER event_id FK
+    TEXT source
+  }
+  measurement {
+    INTEGER measurement_id PK
+    INTEGER subsample_id FK
+    TEXT symbol FK
+    INTEGER method_id FK
+    TEXT source
+  }
+  method {
+    INTEGER method_id PK
+    TEXT symbol FK
+    TEXT source
+  }
+  grain_size_fraction {
+    INTEGER gsf_id PK
+    INTEGER subsample_id FK
+    TEXT symbol FK
+    TEXT source
+  }
+```
+
+```{r}
+library(tibble)
+library(knitr)
+```
+
+## dataset
+
+One row per data-collection campaign. Clean columns plus `source` and provenance.
+
+```{r}
+tribble(
+  ~Column,          ~Type,     ~Meaning,
+  "dataset_id",     "INTEGER", "Primary key (renumbered across all sources).",
+  "dataset_name",   "TEXT",    "Name of the data-collection campaign / dataset.",
+  "dataset_code",   "TEXT",    "Source-native dataset code, where recorded.",
+  "dataset_group",  "TEXT",    "Dataset grouping, where recorded.",
+  "source",         "TEXT",    "Source database name.",
+  "source_type",    "TEXT",    "Kind of source (e.g. national, international).",
+  "url",            "TEXT",    "Source URL, where recorded.",
+  "doi",            "TEXT",    "Dataset DOI, where recorded.",
+  "country",        "TEXT",    "Country of origin.",
+  "region",         "TEXT",    "Marine region, where recorded.",
+  "institute",      "TEXT",    "Institute responsible for the data.",
+  "institute_code", "TEXT",    "Institute code, where recorded.",
+  "accessed",       "TEXT",    "Date the source was accessed.",
+  "src_dataset_id", "TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+## site
+
+One row per geographic location. Carries the geo-enrichment (including
+`dist_to_aquaculture`) plus `source` and provenance.
+
+```{r}
+tribble(
+  ~Column,               ~Type,     ~Meaning,
+  "site_id",             "INTEGER", "Primary key (renumbered across all sources).",
+  "latitude",            "REAL",    "Latitude in decimal degrees.",
+  "longitude",           "REAL",    "Longitude in decimal degrees.",
+  "depth",               "REAL",    "Water depth (m), where recorded.",
+  "country",             "TEXT",    "Nearest country.",
+  "country_code",        "TEXT",    "ISO country code.",
+  "dist_to_coast",       "REAL",    "Distance to nearest coastline (km).",
+  "municipality",        "TEXT",    "Nearest municipality.",
+  "sea_name",            "TEXT",    "Name of the sea or ocean body.",
+  "dist_to_aquaculture", "REAL",    "Distance to nearest Norwegian aquaculture site (km); Norway sites only, else NULL.",
+  "source",              "TEXT",    "Source database name.",
+  "src_site_id",         "TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+## event
+
+One row per sampling event.
+
+```{r}
+tribble(
+  ~Column,         ~Type,     ~Meaning,
+  "event_id",      "INTEGER", "Primary key (renumbered across all sources).",
+  "dataset_id",    "INTEGER", "-> dataset.",
+  "site_id",       "INTEGER", "-> site.",
+  "year",          "INTEGER", "Year of the sampling event.",
+  "date",          "TEXT",    "Date of the sampling event, where recorded.",
+  "sampling_tool", "TEXT",    "Sampling gear, descriptive name.",
+  "n_layers",      "INTEGER", "Number of subsamples (depth layers) under the event.",
+  "source",        "TEXT",    "Source database name.",
+  "src_event_id",  "TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+## subsample
+
+One row per subsample (a depth slice of an event).
+
+```{r}
+tribble(
+  ~Column,             ~Type,     ~Meaning,
+  "subsample_id",      "INTEGER", "Primary key (renumbered across all sources).",
+  "event_id",          "INTEGER", "-> event.",
+  "depth_from",        "REAL",    "Top of the slice, cm (NULL if removed or never recorded).",
+  "depth_to",          "REAL",    "Bottom of the slice, cm (NULL if removed or never recorded).",
+  "depth_flag",        "TEXT",    "'implausible' where the reported depth was removed (Vannmiljø only), else NULL.",
+  "fe_exist",          "INTEGER", "1/0: an Fe value exists for this subsample.",
+  "al_exist",          "INTEGER", "1/0: an Al value exists.",
+  "org_exist",         "INTEGER", "1/0: an organic carbon value exists.",
+  "comp_exist",        "INTEGER", "1/0: grain-size composition exists.",
+  "target_frac_class", "TEXT",    "Target-fraction summary: 'bulk', 'sieved', or 'mixed', else NULL.",
+  "target_sieve_um",   "REAL",    "Target sieve cutoff where unambiguous, else NULL.",
+  "fines_lt63",        "REAL",    "% finer than 63 um (mud content), else NULL.",
+  "fines_basis",       "TEXT",    "How fines_lt63 was derived.",
+  "source",            "TEXT",    "Source database name.",
+  "src_subsample_id",  "TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+## measurement
+
+One row per cleaned chemistry measurement, after cross-source duplicates are removed.
+Carries the harmonised sieve cutoff and provenance.
+
+```{r}
+tribble(
+  ~Column,             ~Type,     ~Meaning,
+  "measurement_id",    "INTEGER", "Primary key (renumbered across all sources).",
+  "subsample_id",      "INTEGER", "-> subsample.",
+  "symbol",            "TEXT",    "Element, ICES name (-> element).",
+  "value",             "REAL",    "Value in the original (ICES-named) unit.",
+  "unit",              "TEXT",    "Original reporting unit.",
+  "value_std",         "REAL",    "Standardised value, mg/kg.",
+  "unit_std",          "TEXT",    "Always mg/kg.",
+  "value_sd",          "REAL",    "SD across technical replicates, else NULL.",
+  "n_rep",             "INTEGER", "Number of replicate values averaged (1 = single).",
+  "value_uncrt",       "REAL",    "Analytical uncertainty, mg/kg (ICES-DOME only), else NULL.",
+  "matrix",            "TEXT",    "Raw ICES sediment-fraction code (provenance).",
+  "frac_class",        "TEXT",    "Sediment fraction: 'bulk' or 'sieved'.",
+  "sieve_um",          "REAL",    "Sieve cutoff in um for sieved rows, NULL for bulk.",
+  "method_id",         "INTEGER", "-> method.",
+  "sieve_um_std",      "REAL",    "Harmonised sieve cutoff (62 folded to 63), NULL for bulk.",
+  "sieve_class",       "TEXT",    "Sieve label, e.g. '<63um' / '<20um', NULL for bulk.",
+  "source",            "TEXT",    "Source database name.",
+  "src_measurement_id","TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+## element
+
+The shared element lookup. Unchanged from clean: a single vocabulary across all
+sources, so it carries **no** `source` column.
+
+```{r}
+tribble(
+  ~Column,    ~Type,  ~Meaning,
+  "symbol",   "TEXT", "Primary key: element in the ICES name (e.g. CO, CU, CORG).",
+  "name",     "TEXT", "Full element / measurand name.",
+  "category", "TEXT", "Measurand class: target / reference / organic / composition.",
+  "cas",      "TEXT", "CAS registry number, where known."
+) |> kable()
+```
+
+## method
+
+One row per distinct analytical method.
+
+```{r}
+tribble(
+  ~Column,              ~Type,     ~Meaning,
+  "method_id",          "INTEGER", "Primary key (renumbered across all sources).",
+  "symbol",             "TEXT",    "-> element.",
+  "method",             "TEXT",    "Analytical technique (e.g. ICP-MS, ICP-AES).",
+  "method_description", "TEXT",    "Free-text method description, where recorded.",
+  "lab",                "TEXT",    "Laboratory that performed the analysis, where recorded.",
+  "lab_name",           "TEXT",    "Full laboratory name, where recorded.",
+  "lod",                "REAL",    "Limit of detection, where recorded.",
+  "loq",                "REAL",    "Limit of quantification, where recorded.",
+  "limit_unit",         "TEXT",    "Reporting unit of lod / loq.",
+  "source",             "TEXT",    "Source database name.",
+  "src_method_id",      "TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+## grain_size_fraction (per fraction measurement)
+
+One row per grain-size mass-fraction value (4Demon contributes none).
+
+```{r}
+tribble(
+  ~Column,       ~Type,     ~Meaning,
+  "gsf_id",      "INTEGER", "Primary key (renumbered across all sources).",
+  "subsample_id","INTEGER", "-> subsample.",
+  "symbol",      "TEXT",    "The source's grain-size code.",
+  "matrix",      "TEXT",    "Sample fraction the value is a percentage of.",
+  "lo_um",       "REAL",    "Lower size bound, um.",
+  "hi_um",       "REAL",    "Upper size bound, um (NULL = open, e.g. gravel).",
+  "value_pct",   "REAL",    "Corrected mass fraction, %.",
+  "source",      "TEXT",    "Source database name.",
+  "src_gsf_id",  "TEXT",    "Original source-prefixed key (provenance)."
+) |> kable()
+```
+
+::: {.callout-note}
+The merged database is one row per reading: a measurement reported by more than one
+source is kept once, from the most preferred source (Mareano > 4Demon > MUDAB >
+Vannmiljø > ICES-DOME). The `source` and `src_*_id` columns record where each
+surviving row came from.
+:::

@@ -22,10 +22,12 @@ website:
         menu:
           - text: "DB Schema (Clean)"
             href: db-schema-clean.qmd
+          - text: "Site Locations"
+            href: site-locations.qmd
+          - text: "DB Schema (Merged)"
+            href: db-schema-merged.qmd
           - text: "Database Downloads"
             href: database-downloads.qmd
-          - text: "Site locations"
-            href: site-locations.qmd
       - text: "Analyses"
         menu:
           - text: "Summary"

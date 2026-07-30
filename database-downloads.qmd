@@ -1,19 +1,44 @@
 ---
 title: "Database Downloads"
-subtitle: Download links for the clean SQLite databases
+subtitle: Download links for the clean and merged SQLite databases
 ---
 
 Each source has a **clean** database (`<source>_clean.sqlite`): the QC-passed end
 product of the slim stage, with uncertain rows removed, units harmonised, and
 grain-size split into its own table. The analyses on this site read these five
-databases. Their table layout is on the
-[DB Schema (Clean)](./db-schema-clean.qmd) page.
-
-The clean databases are published as release assets on the **multised-slim**
-repository (alongside the flagged slim databases), so the download links point
-there.
+databases; the **merged** database combines them into one. Their table layouts are on
+the [DB Schema (Clean)](./db-schema-clean.qmd) and
+[DB Schema (Merged)](./db-schema-merged.qmd) pages.
 
 ## Clean databases
+
+The clean database comes in two versions, both using the same filename
+`<source>_clean.sqlite` (so keep them apart if you download both):
+
+- **Site input** (this multised-clean v0.1.0 release): the clean database enriched
+  for this site, adding `site.dist_to_aquaculture` (distance to the nearest
+  Norwegian aquaculture site). This is the version the pages here read, so use these
+  to reproduce the site.
+- **Upstream** (the multised-slim v0.1.0 release): the base clean database as
+  published by the slim pipeline, without the aquaculture distance.
+
+Both share the same [DB Schema (Clean)](./db-schema-clean.qmd).
+
+::: {.panel-tabset}
+
+### Site input (with aquaculture distance)
+
+| Source | File | Download |
+|:-------|:-----|:---------|
+| Mareano | `mareano_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/mareano_clean.sqlite) |
+| Vannmiljø | `vannmiljo_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/vannmiljo_clean.sqlite) |
+| ICES-DOME | `ices_dome_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/ices_dome_clean.sqlite) |
+| MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/mudab_clean.sqlite) |
+| 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/4demon_clean.sqlite) |
+
+: Site-input clean databases {.striped .hover tbl-colwidths="[25,45,30]"}
+
+### Upstream (multised-slim)
 
 | Source | File | Download |
 |:-------|:-----|:---------|
@@ -23,17 +48,26 @@ there.
 | MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/mudab_clean.sqlite) |
 | 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/4demon_clean.sqlite) |
 
-: Clean databases {.striped .hover tbl-colwidths="[25,45,30]"}
+: Upstream clean databases {.striped .hover tbl-colwidths="[25,45,30]"}
+
+:::
 
 ## Merged database
 
-The final **merged** database, combining all five sources into one, will be
-published here once the cross-source merge is complete.
+The **merged** database combines all five clean databases into one, with cross-source
+duplicates removed (one row per reading). Its layout and the merge steps are on the
+[DB Schema (Merged)](./db-schema-merged.qmd) page and the merged-database analyses.
+
+| File | Download |
+|:-----|:---------|
+| `multised_merged.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/multised_merged.sqlite) |
+
+: Merged database {.striped .hover tbl-colwidths="[45,55]"}
 
 ::: {.callout-note}
-Each file is a self-contained SQLite database. For the table definitions see the
-[DB Schema (Clean)](./db-schema-clean.qmd) page; for how the clean databases are
-built from the slim stage, see the
+Each file is a self-contained SQLite database. To reproduce this site, use the
+**site-input** clean databases (the pages read the aquaculture distance). For how the
+clean databases are built from the slim stage, see the
 [slim site](https://seafood-hazards.github.io/multised-slim/) under **Clean
 databases**.
 :::
