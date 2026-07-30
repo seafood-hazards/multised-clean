@@ -42,6 +42,12 @@ website:
             href: spatial.qmd
           - text: "Sampling year"
             href: temporal.qmd
+      - text: "Aquaculture"
+        menu:
+          - text: "Aquaculture data"
+            href: aquaculture-data.qmd
+          - text: "Aquaculture summary"
+            href: aquaculture-summary.qmd
 
 format:
   html:

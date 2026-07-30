@@ -18,6 +18,8 @@ sources <- c("mareano", "vannmiljo", "ices_dome", "mudab", "4demon")
 assets <- c(
   # clean databases -> data/db
   sprintf("%s_clean.sqlite", sources),
+  # aquaculture reference database -> data/db
+  "aquaculture.sqlite",
   # grain-size analysis -> data/analysis/grainsize
   "grainsize_targets_fines.csv", "grainsize_fraction_summary.csv",
   "grainsize_fines_summary.csv", "grainsize_conc_vs_fines.csv",
@@ -37,7 +39,7 @@ assets <- c(
 # clean DBs live under data/db; an analysis CSV goes under data/analysis/<module>,
 # where <module> is the asset name up to its first underscore.
 dest_of <- function(asset) {
-  if (grepl("_clean\\.sqlite$", asset)) return(file.path("data/db", asset))
+  if (grepl("\\.sqlite$", asset)) return(file.path("data/db", asset))
   module <- sub("_.*$", "", asset)
   file.path("data/analysis", module, asset)
 }

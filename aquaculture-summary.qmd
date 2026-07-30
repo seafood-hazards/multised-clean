@@ -1,0 +1,187 @@
+---
+title: "Aquaculture summary"
+subtitle: "What the Norwegian aquaculture site table contains"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+A summary of the 3,743 Norwegian marine aquaculture sites (see
+[Aquaculture data](aquaculture-data.qmd) for how the table is built). The figures
+below describe where the sites are, when they operated, how large they are, and what
+they farm.
+
+```{r}
+#| label: setup
+library(DBI)
+library(RSQLite)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+con  <- dbConnect(SQLite(), "data/db/aquaculture.sqlite")
+aqua <- dbReadTable(con, "aquaculture") |> as_tibble()
+dbDisconnect(con)
+
+aqua <- aqua |> mutate(status = ifelse(active == 1, "active", "closed"))
+ACTIVE <- "#4477AA"; CLOSED <- "#CCBB44"
+theme_set(theme_minimal(base_size = 12))
+```
+
+## Where the sites are
+
+Every site as a point. Even without a base map, the points trace the Norwegian
+coast, from the south around 58 degrees north to the far north beyond 71 degrees.
+Active sites are shown against the closed ones.
+
+```{r}
+#| label: map
+#| fig-cap: "Norwegian marine aquaculture sites, active and closed. Points are plotted at their latitude and longitude."
+#| fig-width: 6
+#| fig-height: 6.5
+midlat <- mean(range(aqua$latitude))
+ggplot(aqua |> arrange(active), aes(longitude, latitude, colour = status)) +
+  geom_point(size = 0.5, alpha = 0.6) +
+  scale_colour_manual(values = c(active = ACTIVE, closed = CLOSED), name = NULL) +
+  coord_fixed(ratio = 1 / cos(midlat * pi / 180)) +
+  labs(x = "longitude", y = "latitude") +
+  guides(colour = guide_legend(override.aes = list(size = 2, alpha = 1))) +
+  theme(legend.position = "top", panel.grid.minor = element_blank())
+```
+
+Almost all sites are placed in the sea (3,450), with a smaller number of land-based
+sites that use seawater (286). Three counties on the west and north coast, Vestland,
+Nordland and Trøndelag, hold more than half of all sites.
+
+```{r}
+#| label: county
+#| fig-cap: "Number of sites per county (top ten), active and closed."
+#| fig-width: 6.5
+#| fig-height: 3.6
+top_counties <- aqua |> count(county, sort = TRUE) |> slice_head(n = 10) |> pull(county)
+aqua |>
+  filter(county %in% top_counties) |>
+  count(county, status) |>
+  ggplot(aes(n, reorder(county, n), fill = status)) +
+  geom_col() +
+  scale_fill_manual(values = c(active = ACTIVE, closed = CLOSED), name = NULL) +
+  labs(x = "sites", y = NULL) +
+  theme(panel.grid.major.y = element_blank(), legend.position = "top")
+```
+
+## When they operated
+
+Sites are grouped by the decade they were cleared. Clearances rose through the 1990s
+and 2000s; many early sites have since been withdrawn, so the closed share is largest
+among the older decades.
+
+```{r}
+#| label: decade
+#| fig-cap: "Sites by the decade they were cleared, active and closed."
+#| fig-width: 6.5
+#| fig-height: 3.4
+aqua |>
+  filter(!is.na(start_year)) |>
+  mutate(decade = paste0((start_year %/% 10) * 10, "s")) |>
+  count(decade, status) |>
+  ggplot(aes(decade, n, fill = status)) +
+  geom_col() +
+  scale_fill_manual(values = c(active = ACTIVE, closed = CLOSED), name = NULL) +
+  labs(x = NULL, y = "sites") +
+  theme(panel.grid.major.x = element_blank(), legend.position = "top")
+```
+
+## How large they are
+
+Most sites report their capacity as a permitted biomass in tonnes. Among active sites
+with a tonnes capacity, the distribution is shown below (log scale, because a few
+very large salmon sites reach tens of thousands of tonnes while most are far smaller).
+
+```{r}
+#| label: capacity
+#| fig-cap: "Permitted capacity of active sites that report tonnes (log scale)."
+#| fig-width: 6.5
+#| fig-height: 3.2
+aqua |>
+  filter(active == 1, !is.na(capacity_tonnes), capacity_tonnes > 0) |>
+  ggplot(aes(capacity_tonnes)) +
+  geom_histogram(bins = 30, fill = ACTIVE) +
+  scale_x_log10(labels = scales::comma) +
+  labs(x = "permitted capacity (tonnes, log scale)", y = "active sites")
+```
+
+## What they farm
+
+The register lists the species cleared at each site. A site can carry several. The
+table counts how many sites list each of the main commercial groups (a site is
+counted once per group it lists).
+
+```{r}
+#| label: species
+#| fig-cap: "Number of sites listing each main species group (a site may appear in more than one)."
+#| fig-width: 6.5
+#| fig-height: 3.4
+groups <- tibble::tribble(
+  ~group,                 ~pattern,
+  "Salmon",               "Atlantic salmon",
+  "Trout / rainbow trout","trout|Trout",
+  "Cod",                  "Atlantic cod",
+  "Halibut",              "halibut",
+  "Blue mussel",          "Blue mussel",
+  "Scallop / oyster",     "scallop|oyster",
+  "Kelp / seaweed",       "kelp|Dulse|wrack|laver|Sea lettuce",
+  "Cleaner fish",         "wrasse|Lumpfish"
+)
+grp_counts <- groups |>
+  rowwise() |>
+  mutate(sites = sum(grepl(pattern, aqua$fish_types, ignore.case = TRUE), na.rm = TRUE)) |>
+  ungroup()
+
+grp_counts |>
+  ggplot(aes(sites, reorder(group, sites))) +
+  geom_col(fill = ACTIVE) +
+  geom_text(aes(label = sites), hjust = -0.15, size = 3) +
+  scale_x_continuous(expand = expansion(mult = c(0, 0.12))) +
+  labs(x = "sites", y = NULL) +
+  theme(panel.grid.major.y = element_blank())
+```
+
+Salmon and trout dominate: roughly 2,000 sites list each. Blue mussel is the main
+shellfish, and a growing number of sites list kelp and seaweed.
+
+## Distance from sediment sites to the nearest farm
+
+Each sediment site in Norway carries its distance to the nearest aquaculture site.
+The table summarises that distance per source (Norwegian sites only). Vannmiljø, the
+Norwegian coastal monitoring source, sits closest to the farms; Mareano's offshore
+and Arctic stations are much farther away.
+
+```{r}
+#| label: distance
+#| fig-cap: "Distance from each Norwegian sediment site to the nearest aquaculture site."
+sources <- tibble::tribble(
+  ~Source,      ~stem,
+  "Mareano",    "mareano",
+  "Vannmiljø",  "vannmiljo",
+  "ICES-DOME",  "ices_dome",
+  "MUDAB",      "mudab"
+)
+dist_summary <- purrr::pmap_dfr(sources, function(Source, stem) {
+  con <- dbConnect(SQLite(), sprintf("data/db/%s_clean.sqlite", stem))
+  d <- dbGetQuery(con, "SELECT dist_to_aquaculture d FROM site WHERE dist_to_aquaculture IS NOT NULL")$d
+  dbDisconnect(con)
+  tibble(Source = Source, `n sites` = length(d),
+         `median km` = round(median(d), 1), `mean km` = round(mean(d), 1),
+         `max km` = round(max(d)))
+})
+kable(dist_summary)
+```
+
+::: {.callout-note}
+The aquaculture data are Norwegian only, so the distance column and this table cover
+Norwegian sediment sites only. Capacity is the permitted (cleared) capacity, and only
+the tonnes-based sites are summarised above, since area and count capacities are not
+comparable.
+:::

@@ -1,0 +1,108 @@
+---
+title: "Aquaculture data"
+subtitle: "How the Norwegian aquaculture site table is built and translated"
+engine: knitr
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Fish farming is a local pressure on marine sediment, so the clean databases are
+paired with a table of aquaculture sites. The data cover **Norway only**, from the
+Norwegian Directorate of Fisheries site register, and include both **active** and
+**closed** sites. This page explains how the raw exports become one clean,
+English-language table, and how each sediment site is tagged with its distance to
+the nearest farm.
+
+## 1. Two source files
+
+The register comes as two comma-separated exports:
+
+- **Active sites** (status "AKTIV"): 1,779 rows.
+- **Closed sites** (status "TRUKKET", meaning withdrawn): 2,486 rows.
+
+Each row is one aquaculture location, with its name, clearance date, capacity,
+species, municipality and county, and its position. After the steps below, 3,743
+salt-water and brackish sites remain (1,554 active, 2,189 closed).
+
+## 2. Turning the coordinates into latitude and longitude
+
+The positions need care. The active file gives both decimal latitude and longitude
+**and** a projected `x, y`; the closed file gives **only** `x, y`. Both `x, y` are in
+the Norwegian national grid **ETRS89 / UTM zone 33N** (EPSG:25833).
+
+We confirmed this by taking the active file, transforming its `x, y` back to
+latitude and longitude, and comparing with the latitude and longitude the file
+already carried. The two agreed to within 56 metres, which is exactly the rounding
+of the file's three-decimal coordinates. Satisfied that the grid is correct, we
+derive latitude and longitude from `x, y` for **both** files, so every site is
+positioned the same way and at full precision.
+
+## 3. Translating from Norwegian to English
+
+The register is in Norwegian. We translate the descriptive fields and keep the
+proper place and site names as they are.
+
+- **Water type:** SALTVANN or SALT becomes "salt", BRAKKVANN becomes "brackish",
+  and FERSKVANN/SALTVANN becomes "fresh/salt".
+- **Placement:** SJØ becomes "sea", LAND becomes "land".
+- **Capacity unit:** TN becomes "tonnes", DA becomes "decare", STK becomes "count",
+  and so on.
+- **Species (the fish types):** the common commercial species are translated with a
+  fixed dictionary, for example Laks to Atlantic salmon, Regnbueørret to Rainbow
+  trout, Torsk to Atlantic cod, Blåskjell to Blue mussel, Sukkertare to Sugar kelp.
+  A handful of rare or research-monitoring species that are not in the dictionary
+  keep their Norwegian name.
+
+## 4. Keeping the marine sites
+
+We keep only sites with a salt-water component, since those are the ones that sit on
+or beside marine sediment: **salt**, **brackish**, and the **mixed fresh/salt**
+sites. Pure freshwater sites are dropped. Placement (sea or land) is kept as its own
+column, so land-based sites that use seawater can still be identified.
+
+## 5. The aquaculture table
+
+The result is a single table, `aquaculture`, in its own database
+(`aquaculture.sqlite`). One row is one site.
+
+| Column | Meaning |
+|--------|---------|
+| `aqua_id` | Row identifier (primary key) |
+| `loknr` | Site number in the register |
+| `name` | Site name (kept in Norwegian) |
+| `latitude`, `longitude` | Position (WGS84), derived from the national grid |
+| `start_year` | Year the site was cleared |
+| `end_year` | Year the site was withdrawn (empty for active sites) |
+| `active` | 1 for active, 0 for closed |
+| `water_type` | salt, brackish, or fresh/salt |
+| `capacity` | Cleared (permitted) capacity, as reported |
+| `capacity_unit` | Unit of `capacity` (tonnes, decare, count, ...) |
+| `capacity_tonnes` | Capacity converted to tonnes where the unit is a mass; empty otherwise |
+| `fish_types` | Species farmed, translated to English |
+| `placement` | sea or land |
+| `county`, `municipality` | Region (first name kept where the source is multilingual) |
+
+Two notes on capacity. The cleared capacity is the permitted maximum, and it is the
+one field present in both source files, so it is used for both. Its unit is not the
+same for every site: tonnes for fish farms, decare of area for shellfish and kelp,
+or a count of animals. The `capacity_tonnes` column therefore converts only the
+mass-based units (tonnes as is, kilograms divided by a thousand); area, count and
+volume capacities have no tonnes equivalent and are left empty.
+
+## 6. Distance from each sediment site to the nearest farm
+
+Finally, each sediment site in the clean databases gets a new column,
+`dist_to_aquaculture`: the great-circle distance in kilometres to the nearest
+aquaculture site. Because the aquaculture data are Norwegian only, the distance is
+computed **only for sites in Norway** (identified by the country tag from the
+[site locations](site-locations.qmd) step); every other site is left empty. The
+nearest site is taken over **all** farms, active or closed, since a former farm is a
+historical pressure on the sediment just as a current one is.
+
+::: {.callout-note}
+The aquaculture data are Norwegian only, so `dist_to_aquaculture` exists only for
+Norwegian sediment sites. When international aquaculture data become available the
+same column can be extended to the other sources.
+:::
