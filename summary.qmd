@@ -1,0 +1,239 @@
+---
+title: "Summary"
+subtitle: "What the analyses found, and what to carry into the merged stage"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+This page pulls the separate analyses together in plain terms. It is meant to be
+read on its own, before the detailed pages.
+
+The trace-element data come from five sources. Before any of them can be compared,
+one distinction comes first: **how the sample was measured**.
+
+- **Bulk** means the whole sediment (or the under-2 mm part of it) was analysed.
+- **Sieved** means only a fine sub-fraction was analysed, most often the material
+  finer than 63 micrometres, and for the German data finer than 20 micrometres.
+
+This matters because fine sediment concentrates metals. A sieved value is therefore
+higher than a bulk value of the same mud, so the two **cannot be pooled**. We keep
+them apart from the start and summarise each on its own.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+gdir <- "data/analysis/grainsize"
+ndir <- "data/analysis/normalisation"
+odir <- "data/analysis/organic"
+
+frs <- read_csv(file.path(gdir, "grainsize_fraction_summary.csv"), show_col_types = FALSE)
+tf  <- read_csv(file.path(gdir, "grainsize_targets_fines.csv"),    show_col_types = FALSE)
+bvs <- read_csv(file.path(gdir, "grainsize_bulk_vs_sieved.csv"),   show_col_types = FALSE)
+np  <- read_csv(file.path(ndir, "normalisation_pairs.csv"),        show_col_types = FALSE)
+op  <- read_csv(file.path(odir, "organic_pairs.csv"),              show_col_types = FALSE)
+
+src_levels  <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+elem_levels <- c("CO", "MN", "ZN", "CU", "MO", "SE", "I")
+ord_src <- function(x) factor(x, levels = src_levels)
+BULK <- "#4477AA"; SIEVED <- "#CCBB44"
+theme_set(theme_minimal(base_size = 12))
+```
+
+## 1. The first split: bulk versus sieved
+
+Two of the five sources report only bulk, one reports mostly sieved, one is almost
+entirely sieved, and one carries both. The table gives the counts; the figure shows
+the same shares.
+
+```{r}
+#| label: split-table
+share <- frs |>
+  group_by(Source, frac_class) |>
+  summarise(n = sum(n), .groups = "drop") |>
+  pivot_wider(names_from = frac_class, values_from = n, values_fill = 0)
+if (!"sieved" %in% names(share)) share$sieved <- 0
+
+sieve_note <- tibble(
+  Source = src_levels,
+  `typical sieve` = c("n/a (bulk only)", "n/a (bulk only)",
+                      "<63 and <20 µm", "<20 µm", "<63 µm"))
+
+share |>
+  transmute(Source,
+            `n bulk` = bulk, `n sieved` = sieved,
+            `% sieved` = round(100 * sieved / (bulk + sieved))) |>
+  left_join(sieve_note, by = "Source") |>
+  mutate(Source = ord_src(Source)) |>
+  arrange(Source) |>
+  kable()
+```
+
+```{r}
+#| label: split-figure
+#| fig-cap: "Share of target measurements analysed on bulk (whole sample) versus sieved (fine fraction), per source."
+#| fig-width: 6.5
+#| fig-height: 3
+frs |>
+  group_by(Source, frac_class) |>
+  summarise(n = sum(n), .groups = "drop") |>
+  group_by(Source) |>
+  mutate(share = n / sum(n)) |>
+  ungroup() |>
+  ggplot(aes(share, ord_src(Source), fill = frac_class)) +
+  geom_col(width = 0.7) +
+  scale_fill_manual(values = c(bulk = BULK, sieved = SIEVED), name = NULL) +
+  scale_x_continuous(labels = scales::percent) +
+  labs(x = NULL, y = NULL) +
+  theme(panel.grid.major.y = element_blank(), legend.position = "top")
+```
+
+**In short:** the Norwegian sources (Mareano, Vannmiljø) are a clean bulk world; the
+international and German data (ICES-DOME, MUDAB, 4Demon) are mostly sieved, and even
+the sieve size differs between them.
+
+## 2. Bulk samples: concentration follows the sediment
+
+In a bulk sample the number describes the whole sediment, so the concentration rises
+and falls with what the sediment is made of. The analyses asked which ingredient
+controls each metal. One comparable number is used throughout: the correlation of
+concentration with each control, in bulk samples (positive means the metal rises
+with that control).
+
+```{r}
+#| label: bulk-heatmap
+#| fig-cap: "How strongly each metal tracks each control in bulk samples (median Spearman correlation across sources). Blue = rises with the control, red = falls, grey = little relation."
+#| fig-width: 6.5
+#| fig-height: 4
+MIN_N <- 30L
+control_rho <- function(df, col, label) {
+  df |>
+    filter(frac_class == "bulk", value_std > 0, !is.na(.data[[col]])) |>
+    group_by(Source, symbol) |>
+    filter(n() >= MIN_N) |>
+    summarise(rho = cor(.data[[col]], value_std, method = "spearman"), .groups = "drop") |>
+    group_by(symbol) |>
+    summarise(control = label, rho = median(rho), .groups = "drop")
+}
+synth <- bind_rows(
+  control_rho(tf, "fines_lt63", "Fines"),
+  control_rho(np, "AL",         "Al"),
+  control_rho(np, "FE",         "Fe"),
+  control_rho(op, "CORG",       "Organic C")) |>
+  mutate(symbol  = factor(symbol,  levels = elem_levels),
+         control = factor(control, levels = c("Fines","Al","Fe","Organic C")))
+
+ggplot(synth, aes(control, symbol, fill = rho)) +
+  geom_tile(colour = "white", linewidth = 1) +
+  geom_text(aes(label = sprintf("%.2f", rho), colour = abs(rho) > 0.5),
+            size = 3.6, show.legend = FALSE) +
+  scale_fill_gradient2(low = "#CC3311", mid = "grey92", high = BULK,
+                       midpoint = 0, limits = c(-0.8, 0.8), name = "correlation") +
+  scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "grey20")) +
+  scale_x_discrete(position = "top") +
+  labs(x = NULL, y = NULL) +
+  theme(panel.grid = element_blank())
+```
+
+Reading the rows:
+
+- **Cobalt and manganese are lithogenic.** They rise with the fine fraction and with
+  the iron / aluminium carriers. Iron or aluminium normalisation is the right
+  correction for them.
+- **Copper and zinc respond to everything.** They track the carriers and organic
+  carbon and the fines, so either a normaliser or organic carbon can anchor a
+  background.
+- **Molybdenum is organic and redox driven.** It follows organic carbon but not iron
+  or aluminium. Normalisation does not apply; organic carbon is its natural partner.
+- **Selenium and iodine are data limited.** Selenium is weak on every control, and
+  iodine has too few bulk samples to appear here at all; neither has a clear single
+  control.
+
+Two further checks on the bulk samples:
+
+- **Location.** The metal-to-aluminium ratio falls as you move offshore and into
+  deeper water, clearest for zinc and copper. The most enriched sediment sits near
+  the coast, so the offshore floor is the natural-background candidate. See
+  [Depth and coast](spatial.qmd).
+- **Time.** There is no consistent trend across sources, and where a trend appears it
+  tracks a drift in the sampling itself (later campaigns hit muddier sites), not a
+  pollution history. See [Sampling year](temporal.qmd).
+
+## 3. Sieved samples: the fine fraction is already concentrated
+
+Sieving to the fine fraction removes the coarse, metal-poor sand, so a sieved value
+is higher than the bulk value of the same sediment. The figure shows how many times
+higher, per metal, for the sources that report both fractions.
+
+```{r}
+#| label: sieved-ratio
+#| fig-cap: "Sieved concentration divided by bulk concentration (median), per metal and source. Above 1 (blue) means the fine fraction is enriched; below 1 (red) means it is not. Molybdenum is the exception, in line with its redox rather than grain-size control."
+#| fig-width: 7
+#| fig-height: 3.4
+ratio <- bvs |>
+  select(Source, symbol, frac_class, median) |>
+  pivot_wider(names_from = frac_class, values_from = median) |>
+  filter(!is.na(bulk), !is.na(sieved), bulk > 0) |>
+  mutate(ratio = sieved / bulk,
+         enriched = ifelse(ratio >= 1, "enriched (>=1)", "not enriched (<1)"),
+         symbol = factor(symbol, levels = elem_levels))
+
+ggplot(ratio, aes(symbol, ratio, fill = enriched)) +
+  geom_col(width = 0.7) +
+  geom_hline(yintercept = 1, colour = "grey40", linewidth = 0.4) +
+  geom_text(aes(label = sprintf("%.1f", ratio)), vjust = -0.3, size = 3) +
+  facet_wrap(~ ord_src(Source)) +
+  scale_fill_manual(values = c(`enriched (>=1)` = BULK, `not enriched (<1)` = "#CC3311"),
+                    name = NULL) +
+  labs(x = NULL, y = "sieved / bulk") +
+  theme(panel.grid.major.x = element_blank(), legend.position = "top")
+```
+
+**In short:** the grain-size-controlled metals (cobalt, copper, manganese, zinc) are
+roughly two to three and a half times higher in the fine fraction, and molybdenum is
+not, matching what the bulk analysis showed. Because the fine fraction is already
+grain-size controlled, sieved data need far less grain-size correction. Their own
+catch is that the **sieve cutoff is not the same everywhere** (63 versus 20
+micrometres), so even sieved values must be brought to a common cutoff before they
+are compared.
+
+## 4. What to carry into the merged stage
+
+The merged database will define a local natural background per element. The analyses
+point to a clear recipe, and the first rule is to keep the two fractions apart.
+
+```{r}
+#| label: reco-table
+tibble::tribble(
+  ~Element, ~`Governing control`, ~`Bulk: how to handle`, ~`Sieved: how to handle`,
+  "Co, Mn",  "Lithogenic (grain size, Fe/Al)", "Normalise by Al or Fe",          "Compare on a common sieve cutoff",
+  "Cu, Zn",  "Mixed (Fe/Al and organic C)",    "Normalise by Al or Fe, or organic C", "Compare on a common sieve cutoff",
+  "Mo",      "Organic / redox",                "Pair with organic carbon (not Fe/Al)", "Pair with organic carbon",
+  "Se, I",   "Unclear (data limited)",         "Treat with caution, too few data", "Treat with caution, too few data"
+) |>
+  kable()
+```
+
+Alongside the per-element recipe:
+
+- **Do not pool bulk and sieved.** Carry them as two tracks; a sieved value is not a
+  bulk value.
+- **Harmonise the sieve cutoff** among the sieved data (63 versus 20 micrometres)
+  before comparing sources.
+- **Use the offshore, deeper sediment as the background candidate**, per source,
+  since that is where enrichment is lowest.
+- **Treat time trends per source only**, and read them together with the sampling
+  drift they are confounded with.
+
+::: {.callout-note}
+Every number here is a summary statistic (a Spearman correlation or a median ratio,
+on bulk samples unless stated) meant for a quick read across the analyses; the fitted
+models and the full breakdowns live on the individual analysis pages. Selenium and
+iodine are data limited throughout.
+:::

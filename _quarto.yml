@@ -28,6 +28,8 @@ website:
             href: site-locations.qmd
       - text: "Analyses"
         menu:
+          - text: "Summary"
+            href: summary.qmd
           - text: "Grain size"
             href: grain-size.qmd
           - text: "Fe/Al normalisation"
