@@ -29,7 +29,9 @@ assets <- c(
   "organic_pairs.csv", "organic_availability.csv",
   "organic_distribution.csv", "organic_correlation.csv",
   # depth / distance-to-coast -> data/analysis/spatial
-  "spatial_enrichment.csv", "spatial_normaliser.csv", "spatial_pairs.csv"
+  "spatial_enrichment.csv", "spatial_normaliser.csv", "spatial_pairs.csv",
+  # sampling year -> data/analysis/temporal
+  "temporal_enrichment.csv", "temporal_normaliser.csv", "temporal_pairs.csv"
 )
 
 # clean DBs live under data/db; an analysis CSV goes under data/analysis/<module>,

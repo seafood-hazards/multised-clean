@@ -1,0 +1,119 @@
+---
+title: "Sampling year"
+subtitle: "How the sampling year relates to enrichment and the normalisers"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+The time analogue of the [depth and coast](spatial.qmd) page. Does the sampling
+**year** affect the normalisation? Two questions, on bulk samples, per source:
+
+- **(A, the point)** does the **enrichment** (metal / Al) trend over the years? A
+  ratio that falls with year would be a real improvement signal: declining input
+  relative to the lithogenic carrier.
+- **(B, a check)** do the **normalisers and covariates** themselves (Al, Fe,
+  organic carbon, fines) trend with year, i.e. did the sampling or method mix drift
+  over time?
+
+Unlike the coastal gradient, which pointed the same way in every source, the
+temporal trend is **not consistent**: its sign differs by source, and often between
+the two normalisers within a source. So year is not a transferable signal here, and
+(B) shows a large part of why.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+tdir <- "data/analysis/temporal"
+enr  <- read_csv(file.path(tdir, "temporal_enrichment.csv"), show_col_types = FALSE)
+nrm  <- read_csv(file.path(tdir, "temporal_normaliser.csv"), show_col_types = FALSE)
+prs  <- read_csv(file.path(tdir, "temporal_pairs.csv"),      show_col_types = FALSE)
+
+src_levels <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+ord_src <- function(x) factor(x, levels = src_levels)
+theme_set(theme_minimal(base_size = 12))
+```
+
+## A. Enrichment (metal / normaliser) versus sampling year
+
+Spearman correlation of the metal/Al and metal/Fe ratios with sampling year (bulk
+samples, at least 30 per group). **Negative means the ratio falls over time.** No
+element points the same way across the sources, and the Al and Fe columns often
+disagree within a source, so there is no shared temporal decline to read.
+
+```{r}
+#| label: a-table
+enr |>
+  select(Source, symbol, normaliser, rho) |>
+  pivot_wider(names_from = normaliser, values_from = rho) |>
+  transmute(Source = ord_src(Source), Element = symbol,
+            `rho vs year (Al)` = Al, `rho vs year (Fe)` = Fe) |>
+  arrange(Source, Element) |>
+  kable()
+```
+
+```{r}
+#| label: a-heatmap
+#| fig-cap: "Metal/Al vs sampling year (Spearman rho). Blue = ratio rises over time, red = falls, grey = none. The mix of colours down each row is the point: sources disagree."
+#| fig-width: 6.5
+#| fig-height: 3.6
+enr |>
+  filter(normaliser == "Al") |>
+  ggplot(aes(ord_src(Source), symbol, fill = rho)) +
+  geom_tile(colour = "white", linewidth = 1) +
+  geom_text(aes(label = sprintf("%.2f", rho), colour = abs(rho) > 0.4),
+            size = 3.4, show.legend = FALSE) +
+  scale_fill_gradient2(low = "#CC3311", mid = "grey92", high = "#4477AA",
+                       midpoint = 0, limits = c(-0.8, 0.8), name = "rho") +
+  scale_colour_manual(values = c(`TRUE` = "white", `FALSE` = "grey20")) +
+  labs(x = NULL, y = NULL) +
+  theme(panel.grid = element_blank())
+```
+
+```{r}
+#| label: a-scatter
+#| fig-cap: "The zinc/Al ratio against sampling year, per source (log y, linear fit). The fitted slopes point in opposite directions, so the trend is source-specific."
+#| fig-width: 7
+#| fig-height: 4.5
+prs |>
+  filter(symbol == "ZN", !is.na(ratio_AL), ratio_AL > 0, !is.na(year)) |>
+  ggplot(aes(year, ratio_AL)) +
+  geom_point(alpha = 0.15, size = 0.5, colour = "#4477AA") +
+  geom_smooth(method = "lm", formula = y ~ x, colour = "#AA3377", se = FALSE) +
+  scale_y_log10() +
+  facet_wrap(~ ord_src(Source), scales = "free_y") +
+  labs(x = "sampling year", y = "Zn / Al (log)")
+```
+
+## B. Do the normalisers themselves trend with year?
+
+Spearman correlation of Al, Fe, organic carbon and fines with sampling year. This is
+where the (A) picture comes from: in several sources the **fines and organic carbon
+rise with year** (ICES-DOME fines +0.47, MUDAB fines +0.37, Mareano organic carbon
++0.39), meaning later campaigns sampled muddier, more organic-rich sites. A drift in
+the carrier itself moves the metal/normaliser ratio without any change in input, so
+these apparent time trends are largely a change in **where and how** each source
+sampled, not a pollution history.
+
+```{r}
+#| label: b-table
+nrm |>
+  select(Source, factor, rho) |>
+  transmute(Source = ord_src(Source), Factor = factor, `rho vs year` = rho) |>
+  arrange(Source, Factor) |>
+  kable()
+```
+
+::: {.callout-note}
+This is an unbalanced observational series, not a fixed monitoring station, so year
+is confounded with the station mix, gear and lab each source used over time; these
+are associations, not station trends. A real temporal signal needs station-matched
+series, a later step. Mareano's year is sparse (2003 to 2021, and about a quarter of
+its events carry no year), so its rows rest on fewer samples.
+:::

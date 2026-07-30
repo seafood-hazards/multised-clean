@@ -38,6 +38,8 @@ website:
             href: synthesis.qmd
           - text: "Depth and coast"
             href: spatial.qmd
+          - text: "Sampling year"
+            href: temporal.qmd
 
 format:
   html:
