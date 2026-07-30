@@ -6,8 +6,8 @@ subtitle: "Analyses on the QC-passed marine-sediment databases"
 **multised** assembles a database of marine-sediment trace-element measurements
 from five external sources, harmonises them into a common schema, and
 progressively quality-controls the result. This site documents the final stage:
-the **analyses performed on** the clean (QC-passed) databases, ending in a single
-merged database for the background / pristine-sediment work.
+the **analyses performed on** the clean (QC-passed) databases, and the single
+**merged** database that combines all five sources into one.
 
 How the clean databases are built (harmonisation, cleaning, and the grain-size
 split) is documented separately on the
@@ -46,34 +46,46 @@ until the final merge:
 3. **clean** *(the input to this site)*: the flags are applied (uncertain rows
    removed), units are harmonised, and grain-size is split into its own table.
    Five per-source `<source>_clean.sqlite` databases.
-4. **merged** *(the goal of this site)*: the five clean databases are combined
-   into a single database for the background / pristine-sediment analysis.
+4. **merged**: the five clean databases are combined into a single
+   `multised_merged.sqlite`, with cross-source duplicates removed (one row per
+   reading).
 
 ## What this site covers
 
-The analyses read the five clean databases and build towards the merged database.
-The pages are grouped in the navigation bar:
+The pages are grouped in the navigation bar.
 
-**DB Design**
+**DB Design** documents the databases the pages read:
 
-- [DB Schema (Clean)](./db-schema-clean.qmd): the table layout of the clean
-  databases these analyses read, with the entity-relationship diagram.
-- [Database Downloads](./database-downloads.qmd): download links for the five
-  clean SQLite databases.
+- [DB Schema (Clean)](./db-schema-clean.qmd) and
+  [DB Schema (Merged)](./db-schema-merged.qmd): the table layouts, with
+  entity-relationship diagrams.
+- [Site Locations](./site-locations.qmd): the geographic enrichment of the site
+  table (depth, distance to coast, country, sea).
+- [Database Downloads](./database-downloads.qmd): download links for the clean and
+  merged SQLite databases.
 
-**Analyses** (added as each is completed)
+**Analyses** on the clean databases, each computed per source to keep the sources
+comparable:
 
-```{r}
-tribble(
-  ~Analysis,                                      ~Status,
-  "Iron / aluminium normalisation",               "planned",
-  "Grain-size distribution analysis",             "planned",
-  "Cross-source merge into one database",         "planned",
-  "Background and pristine sediment definition",  "planned"
-) |> kable()
-```
+- [Grain size](./grain-size.qmd), [Fe/Al normalisation](./normalisation.qmd) and
+  [Organic carbon](./organic-carbon.qmd): the three controls on the target-metal
+  concentrations.
+- [Depth and coast](./spatial.qmd) and [Sampling year](./temporal.qmd): how the
+  geographic and temporal setting relate to those controls.
+- [Measurement uncertainty](./uncertainty.qmd): what the reported uncertainty
+  contains and how it can be used.
+- [Summary](./summary.qmd) and [Synthesis](./synthesis.qmd): the bulk-versus-sieved
+  split and which control governs each element.
+
+**Aquaculture** documents the Norwegian aquaculture site table paired with the
+databases, and its [summary statistics](./aquaculture-summary.qmd).
+
+**Merged database** documents how the single merged database is built, step by step
+([union](./merge-union.qmd), [deduplication](./merge-dedup.qmd),
+[finalise and retention](./merge-retention.qmd)).
 
 ::: {.callout-note}
-Results will be added here as each analysis is completed. The analysis pages read
-the clean databases live at render time.
+The pages read the clean and merged databases and the per-source analysis outputs at
+render time. The background / pristine-sediment definition is out of scope for this
+version.
 :::
