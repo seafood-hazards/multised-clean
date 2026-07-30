@@ -21,7 +21,7 @@ library(tidyr)
 library(ggplot2)
 library(knitr)
 
-con  <- dbConnect(SQLite(), "data/db/aquaculture.sqlite")
+con  <- dbConnect(SQLite(), "data/db/aquaculture_no.sqlite")
 aqua <- dbReadTable(con, "aquaculture") |> as_tibble()
 dbDisconnect(con)
 

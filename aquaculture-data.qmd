@@ -65,7 +65,7 @@ column, so land-based sites that use seawater can still be identified.
 ## 5. The aquaculture table
 
 The result is a single table, `aquaculture`, in its own database
-(`aquaculture.sqlite`). One row is one site.
+(`aquaculture_no.sqlite`). One row is one site.
 
 | Column | Meaning |
 |--------|---------|

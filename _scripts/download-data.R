@@ -19,7 +19,7 @@ assets <- c(
   # clean databases -> data/db
   sprintf("%s_clean.sqlite", sources),
   # aquaculture reference database -> data/db
-  "aquaculture.sqlite",
+  "aquaculture_no.sqlite",
   # grain-size analysis -> data/analysis/grainsize
   "grainsize_targets_fines.csv", "grainsize_fraction_summary.csv",
   "grainsize_fines_summary.csv", "grainsize_conc_vs_fines.csv",
