@@ -1,0 +1,179 @@
+---
+title: "Measurement uncertainty"
+subtitle: "What is in the value_uncrt column, and how it could be used"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+The clean `measurement` table carries a `value_uncrt` column: the reported
+measurement uncertainty, in mg/kg. This is a first look at it, to decide whether and
+how to use it. The short answer: it is reported by **one source only**, and where it
+is reported it behaves as a **roughly constant relative uncertainty per element**.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+
+udir <- "data/analysis/uncertainty"
+cov  <- read_csv(file.path(udir, "uncertainty_coverage.csv"),    show_col_types = FALSE)
+be   <- read_csv(file.path(udir, "uncertainty_by_element.csv"),  show_col_types = FALSE)
+prs  <- read_csv(file.path(udir, "uncertainty_pairs.csv"),       show_col_types = FALSE)
+rv   <- read_csv(file.path(udir, "uncertainty_rel_values.csv"),  show_col_types = FALSE)
+bm   <- read_csv(file.path(udir, "uncertainty_by_method.csv"),   show_col_types = FALSE)
+
+src_levels <- c("Mareano", "Vannmiljø", "ICES-DOME", "MUDAB", "4Demon")
+BLUE <- "#4477AA"
+theme_set(theme_minimal(base_size = 12))
+```
+
+## 1. Only ICES-DOME reports it
+
+Across the five sources, only ICES-DOME populates `value_uncrt`, and only for about
+half of its measurements. Every other source leaves the column empty.
+
+```{r}
+#| label: coverage
+cov |>
+  mutate(Source = factor(Source, levels = src_levels)) |>
+  arrange(Source) |>
+  transmute(Source, `measurements` = total, `with uncertainty` = has_uncrt,
+            `% with uncertainty` = pct) |>
+  kable()
+```
+
+This alone is the main constraint: because the column is specific to one source,
+`value_uncrt` cannot be used as a weight across the merged dataset without
+privileging ICES-DOME over the rest.
+
+## 2. It scales with the value
+
+Plotting the uncertainty against the value (log-log, ICES-DOME chemistry) shows the
+two rise together along the one-to-one line. In other words the uncertainty is not a
+fixed amount; it is close to a fixed **fraction** of the value.
+
+```{r}
+#| label: scatter
+#| fig-cap: "Reported uncertainty against the measured value (ICES-DOME chemistry, log-log). The dashed line is a constant 10 percent; points track it, so the uncertainty is essentially relative."
+#| fig-width: 6.5
+#| fig-height: 4
+prs |>
+  filter(value_std > 0, value_uncrt > 0) |>
+  ggplot(aes(value_std, value_uncrt)) +
+  geom_point(alpha = 0.08, size = 0.4, colour = BLUE) +
+  geom_abline(slope = 1, intercept = log10(0.10), linetype = "dashed", colour = "grey40") +
+  scale_x_log10(labels = scales::comma) +
+  scale_y_log10(labels = scales::comma) +
+  labs(x = "value (mg/kg, log)", y = "uncertainty (mg/kg, log)")
+```
+
+## 3. The relative uncertainty per element
+
+Expressed as a percentage of the value, the uncertainty is fairly tight for most
+elements. Iron is the lowest (median about 6 percent), the trace metals and the
+normalisers sit around 6 to 12 percent, and organic carbon a little higher. The
+figure shows the median with the quartile range; the table gives the numbers.
+
+```{r}
+#| label: rel-figure
+#| fig-cap: "Relative uncertainty (uncertainty as a percent of the value) per element: median point, quartile range. Molybdenum and selenium sit at a flat value, a nominal default rather than a measured spread."
+#| fig-width: 6.5
+#| fig-height: 3.6
+be |>
+  mutate(flat = p25_rel_pct == p75_rel_pct,
+         symbol = reorder(symbol, med_rel_pct)) |>
+  ggplot(aes(med_rel_pct, symbol)) +
+  geom_linerange(aes(xmin = p25_rel_pct, xmax = p75_rel_pct), colour = "grey60") +
+  geom_point(aes(colour = flat), size = 2.5) +
+  scale_colour_manual(values = c(`FALSE` = BLUE, `TRUE` = "#CC3311"),
+                      labels = c(`FALSE` = "measured spread", `TRUE` = "flat (nominal)"),
+                      name = NULL) +
+  labs(x = "relative uncertainty (%)", y = NULL) +
+  theme(panel.grid.major.y = element_blank(), legend.position = "top")
+```
+
+```{r}
+#| label: rel-table
+be |>
+  transmute(Element = symbol, Category = category, n,
+            `median value` = med_value, `median uncertainty` = med_uncrt,
+            `median rel %` = med_rel_pct, `p25 %` = p25_rel_pct, `p75 %` = p75_rel_pct) |>
+  kable()
+```
+
+Molybdenum sits at exactly 25 percent for every reading (and the ten selenium values
+are erratic), which is a placeholder rather than a genuine per-measurement estimate.
+So even within ICES-DOME the per-row value is only meaningful for the well-covered
+elements.
+
+## Per method or per measurement?
+
+The next question is whether these numbers describe each measurement, or just the
+analytical method that produced it. The evidence says **mostly the method**, with a
+minority of genuine per-sample estimates.
+
+First, the relative uncertainty piles up on a few round percentages. A true
+per-sample estimate would not land on tidy numbers; a lab quoting a standard figure
+for a method would. The most common values, and their share of all rows:
+
+```{r}
+#| label: rel-values
+rv |>
+  slice_head(n = 8) |>
+  transmute(`relative uncertainty (%)` = rel_pct, rows = n, `% of rows` = share_pct) |>
+  kable()
+```
+
+Those eight values alone cover about `r round(sum(rv$share_pct[1:8]))` percent of the
+data. Second, if we group by the analytical method record (element, method, lab), the
+relative uncertainty is often a single fixed value repeated across every measurement:
+
+```{r}
+#| label: by-method-headline
+n_grp  <- nrow(bm)
+n_const <- sum(bm$constant)
+n_few   <- sum(bm$few)
+```
+
+Of the **`r n_grp`** method-and-lab groups with at least 20 measurements,
+**`r n_const` (`r round(100*n_const/n_grp)` percent)** report the **same** relative
+uncertainty for every measurement, and **`r round(100*n_few/n_grp)` percent** use no
+more than three distinct values. A few examples show both kinds side by side: a fixed
+nominal figure, and a lab that genuinely varies it per sample.
+
+```{r}
+#| label: by-method-examples
+bm |>
+  slice_head(n = 8) |>
+  transmute(Element = symbol, Method = method, Lab = lab, n,
+            `distinct uncertainty values` = n_distinct_rel, `median %` = rel_median_pct) |>
+  kable()
+```
+
+So carbon by one lab (SPEC-IR, NOWG) is a flat 13 percent on all of its rows, while
+carbon by another (CNA, ALUK) takes hundreds of distinct values, a real per-sample
+estimate. The column mixes the two, with nothing to flag which is which. That is why
+it is safest to read `value_uncrt` as a **method-level** typical uncertainty rather
+than a per-measurement quality.
+
+## How we could use it
+
+::: {.callout-note}
+- **Not as a per-measurement weight.** It is largely a method-level declared figure,
+  not a per-sample estimate, so it does not rank individual measurements by quality.
+- **Not as a cross-source weight.** Only ICES-DOME reports it, so weighting by it
+  would privilege one source. It would first need a comparable figure for the others.
+- **As an element or method level typical uncertainty.** Because it is close to a
+  constant percentage per element (iron about 6 percent, most trace metals 6 to 12
+  percent, organic carbon about 13 percent), it can be summarised into one relative
+  uncertainty per element, or per element and method, and reused as a rough error bar
+  for any source without storing it per row.
+- **As an optional quality flag.** A reading whose relative uncertainty is far above
+  its element's normal range is a review candidate.
+- **Drop the placeholder values.** The flat 25 percent for molybdenum (and the sparse
+  selenium) are nominal defaults, so exclude them before any of the above.
+:::

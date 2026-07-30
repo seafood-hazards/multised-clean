@@ -33,7 +33,10 @@ assets <- c(
   # depth / distance-to-coast -> data/analysis/spatial
   "spatial_enrichment.csv", "spatial_normaliser.csv", "spatial_pairs.csv",
   # sampling year -> data/analysis/temporal
-  "temporal_enrichment.csv", "temporal_normaliser.csv", "temporal_pairs.csv"
+  "temporal_enrichment.csv", "temporal_normaliser.csv", "temporal_pairs.csv",
+  # measurement uncertainty -> data/analysis/uncertainty
+  "uncertainty_coverage.csv", "uncertainty_by_element.csv", "uncertainty_pairs.csv",
+  "uncertainty_rel_values.csv", "uncertainty_by_method.csv"
 )
 
 # clean DBs live under data/db; an analysis CSV goes under data/analysis/<module>,
