@@ -50,6 +50,14 @@ website:
             href: aquaculture-data.qmd
           - text: "Aquaculture summary"
             href: aquaculture-summary.qmd
+      - text: "Merged database"
+        menu:
+          - text: "Step 1: union"
+            href: merge-union.qmd
+          - text: "Step 2: deduplication"
+            href: merge-dedup.qmd
+          - text: "Step 3: finalise and retention"
+            href: merge-retention.qmd
 
 format:
   html:

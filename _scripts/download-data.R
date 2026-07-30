@@ -36,7 +36,9 @@ assets <- c(
   "temporal_enrichment.csv", "temporal_normaliser.csv", "temporal_pairs.csv",
   # measurement uncertainty -> data/analysis/uncertainty
   "uncertainty_coverage.csv", "uncertainty_by_element.csv", "uncertainty_pairs.csv",
-  "uncertainty_rel_values.csv", "uncertainty_by_method.csv"
+  "uncertainty_rel_values.csv", "uncertainty_by_method.csv",
+  # merged database summaries -> data/analysis/merge
+  "merge_retention.csv", "merge_stage_totals.csv", "merge_dedup.csv"
 )
 
 # clean DBs live under data/db; an analysis CSV goes under data/analysis/<module>,

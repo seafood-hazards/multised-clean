@@ -1,0 +1,87 @@
+---
+title: "Merge step 1: union"
+subtitle: "Combining the five clean databases into one"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+The merged database is built in three steps. This page covers the first: bringing
+the five per-source clean databases together into one, without yet removing anything.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(knitr)
+
+mdir <- "data/analysis/merge"
+ret <- read_csv(file.path(mdir, "merge_retention.csv"),    show_col_types = FALSE)
+tot <- read_csv(file.path(mdir, "merge_stage_totals.csv"), show_col_types = FALSE)
+
+src_levels <- c("Mareano", "4Demon", "MUDAB", "Vannmiljø", "ICES-DOME")
+BLUE <- "#4477AA"
+theme_set(theme_minimal(base_size = 12))
+```
+
+## What the union does
+
+Each source keeps its own primary keys (site 1, site 2, and so on), so simply
+stacking the tables would collide them. To prevent that, **every key is prefixed with
+a source code** while merging: `mar` for Mareano, `dem` for 4Demon, `mud` for MUDAB,
+`van` for Vannmiljø, `ice` for ICES-DOME. A site becomes `mar_1`, `ice_1`, and the two
+can never be confused. Every row also gains a `source` column. These prefixes are
+temporary: the final step renumbers the keys to clean integers and keeps the source
+and original id as provenance.
+
+The element list is the one thing shared across sources (the same ICES element
+symbols), so it is collapsed to a single vocabulary rather than repeated per source.
+
+## What each source brings
+
+At the union stage nothing is dropped, so the measurement counts are exactly those of
+the clean databases. Vannmiljø and ICES-DOME are the largest contributors.
+
+```{r}
+#| label: contribution
+#| fig-cap: "Measurements contributed by each source at the union stage (before deduplication)."
+#| fig-width: 6.5
+#| fig-height: 3.2
+ret |>
+  filter(table == "measurement") |>
+  mutate(Source = factor(Source, levels = src_levels)) |>
+  ggplot(aes(clean_n, reorder(Source, clean_n))) +
+  geom_col(fill = BLUE) +
+  geom_text(aes(label = scales::comma(clean_n)), hjust = -0.1, size = 3) +
+  scale_x_continuous(labels = scales::comma, expand = expansion(mult = c(0, 0.15))) +
+  labs(x = "measurements", y = NULL) +
+  theme(panel.grid.major.y = element_blank())
+```
+
+The union holds every table side by side:
+
+```{r}
+#| label: union-totals
+tot |>
+  transmute(Table = table, `rows at union` = clean_total) |>
+  arrange(desc(`rows at union`)) |>
+  kable()
+```
+
+## Harmonising the sieve cutoff
+
+Sieved measurements are analysed on different fine fractions (finer than 63 or finer
+than 20 micrometres), and one source labels the 63 micrometre cutoff as 62. The union
+adds a **harmonised sieve cutoff** to every measurement: a canonical number (62 folded
+to 63) and a label such as `<63um` or `<20um`, empty for bulk. This lets like-cutoff
+sieved data be compared and keeps different cutoffs apart. The values themselves are
+not converted between cutoffs, which is impossible without the full grain-size curve.
+After harmonising, the sieved measurements are about 46,000 at `<20um` and 21,000 at
+`<63um`, with only a handful at coarser cutoffs.
+
+::: {.callout-note}
+Bulk and sieved are kept as separate tracks throughout the merge: the sieve cutoff and
+the bulk/sieved label are part of every later comparison, so the two are never pooled.
+:::
