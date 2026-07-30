@@ -10,10 +10,10 @@ th { white-space: nowrap; }
 Do the geographic attributes **depth** and **distance to coast** affect the
 normalisation? Two questions, on bulk samples, per source:
 
-- **(B, the point)** does the **enrichment** (metal / Al) change offshore and with
+- **(A, the point)** does the **enrichment** (metal / Al) change offshore and with
   depth? A ratio that falls offshore is the coastal-pollution gradient the pristine
   background rests on: cleaner offshore sediment.
-- **(A, a check)** do the **normalisers and covariates** themselves (Al, Fe,
+- **(B, a check)** do the **normalisers and covariates** themselves (Al, Fe,
   organic carbon, fines) vary with depth and distance to coast?
 
 ```{r}
@@ -34,7 +34,7 @@ ord_src <- function(x) factor(x, levels = src_levels)
 theme_set(theme_minimal(base_size = 12))
 ```
 
-## B. Enrichment (metal / Al) versus depth and distance to coast
+## A. Enrichment (metal / Al) versus depth and distance to coast
 
 Spearman correlation of the metal/Al ratio with distance to coast and with depth
 (bulk samples, at least 30 per group). **Negative means the ratio falls offshore /
@@ -90,7 +90,7 @@ The offshore decline in metal/Al (clearest for Zn and Cu) means the most enriche
 sediment sits near the coast and the offshore floor is the natural background
 candidate, which is what the merged-stage pristine definition will lean on.
 
-## A. Do the normalisers themselves vary with depth and coast?
+## B. Do the normalisers themselves vary with depth and coast?
 
 Spearman correlation of Al, Fe, organic carbon and fines with depth and distance to
 coast. There is spatial structure, but its sign and strength **differ by source**
