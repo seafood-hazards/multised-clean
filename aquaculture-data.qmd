@@ -15,6 +15,10 @@ Norwegian Directorate of Fisheries site register, and include both **active** an
 English-language table, and how each sediment site is tagged with its distance to
 the nearest farm.
 
+**Data source:** the Norwegian Directorate of Fisheries (Fiskeridirektoratet)
+"Yggdrasil" aquaculture site portal,
+[portal.fiskeridir.no](https://portal.fiskeridir.no/portal/apps/sites/#/yggdrasil).
+
 ## 1. Two source files
 
 The register comes as two comma-separated exports:
