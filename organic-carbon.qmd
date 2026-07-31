@@ -13,7 +13,7 @@ size and the Fe/Al normalisers. Where a metal tracks organic carbon but not
 aluminium, it is organically rather than lithogenically controlled. This page
 relates each target metal to the co-located CORG, **separately per source**.
 
-The analysis is run in the `sedimenter` pipeline (`R/analysis/organic/`). Each
+The analysis is run upstream in the processing pipeline. Each
 target is paired with the CORG on the **same subsample and same fraction**; CORG is
 converted from mg/kg to percent. All depths are kept, reported by the EFSA depth
 bands. 4Demon has no organic carbon.

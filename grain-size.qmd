@@ -15,9 +15,8 @@ between bulk and sieved, how much fine (<63 µm) material the samples carry, and
 concentration tracks grain size. All depths are kept but reported by the EFSA depth
 bands (0 to 5, 5 to 40, over 40 cm), assigned from the subsample interval midpoint.
 
-The analysis itself is run in the `sedimenter` pipeline
-(`R/analysis/grainsize/`); this page renders the summary tables and figures from
-its outputs.
+The analysis itself is run upstream in the processing pipeline; this page renders
+the summary tables and figures from its outputs.
 
 ```{r}
 #| label: setup

@@ -15,8 +15,8 @@ which is the baseline the enrichment-factor / pristine determination rests on (t
 cutoff is a later, merged-stage step; this page establishes the normalisation
 itself).
 
-The analysis is run **separately per source** in the `sedimenter` pipeline
-(`R/analysis/normalisation/`). Each target is paired with the Al and Fe measured on
+The analysis is run **separately per source** upstream in the processing
+pipeline. Each target is paired with the Al and Fe measured on
 the **same subsample and same fraction** (bulk with bulk, sieved with sieved),
 since normalisation is only valid within a comparable fraction. All depths are
 kept, reported by the EFSA depth bands.
