@@ -15,7 +15,7 @@ than each source's own. This matters for the later cross-source merge: a site of
 the Norwegian coast should get the same depth, sea and distance-to-coast whether it
 came from Mareano or ICES-DOME.
 
-The step runs in the `sedimenter` pipeline (`R/clean/geo_enrich.R`): it exports the
+The step runs upstream in the processing pipeline: it exports the
 site coordinates, runs geoenrich, and replaces six columns.
 
 ```{r}
