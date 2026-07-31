@@ -38,8 +38,7 @@ assets <- c(
   "uncertainty_coverage.csv", "uncertainty_by_element.csv", "uncertainty_pairs.csv",
   "uncertainty_rel_values.csv", "uncertainty_by_method.csv",
   # merged database summaries -> data/analysis/merge
-  "merge_retention.csv", "merge_stage_totals.csv", "merge_dedup.csv",
-  "merge_outlier_summary.csv", "merge_outlier_hist.csv", "merge_outlier_examples.csv"
+  "merge_retention.csv", "merge_stage_totals.csv", "merge_dedup.csv"
 )
 
 # clean DBs live under data/db; an analysis CSV goes under data/analysis/<module>,

@@ -60,8 +60,6 @@ website:
             href: merge-dedup.qmd
           - text: "Step 3: finalise and retention"
             href: merge-retention.qmd
-          - text: "Step 4: outlier flagging"
-            href: merge-outliers.qmd
 
 format:
   html:
