@@ -1,0 +1,159 @@
+---
+title: "Merge step 4: outlier flagging"
+subtitle: "Marking values that sit implausibly far from their element's distribution"
+---
+
+```{css, echo=FALSE}
+th { white-space: nowrap; }
+```
+
+Across the five sources, a small number of values are far larger or smaller than
+anything else recorded for the same element. Many are registration errors: a
+misplaced decimal, a unit entered as mg/kg instead of percent, a transcription slip.
+The fourth step marks these so they can be reviewed, adding a soft `outlier_flag`
+(`high` / `low` / NULL) to every measurement. It is a **flag, not a deletion**: a
+genuinely contaminated site should survive for a person to judge, so nothing is
+removed here.
+
+This complements the physical range check carried up from the slim stage, which uses
+deliberately generous fixed bounds and so misses a value that is shifted tenfold but
+still under the maximum. This step instead compares each value against the **shape of
+its own element's distribution**.
+
+```{r}
+#| label: setup
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(knitr)
+
+mdir <- "data/analysis/merge"
+smry <- read_csv(file.path(mdir, "merge_outlier_summary.csv"), show_col_types = FALSE)
+hist <- read_csv(file.path(mdir, "merge_outlier_hist.csv"),    show_col_types = FALSE)
+ex   <- read_csv(file.path(mdir, "merge_outlier_examples.csv"), show_col_types = FALSE)
+
+elem_order <- c("CO", "CU", "I", "MN", "MO", "SE", "ZN", "FE", "AL",
+                "CORG", "TOC", "TOC63")
+lev <- elem_order[elem_order %in% unique(smry$symbol)]
+smry <- smry |> mutate(symbol = factor(symbol, levels = lev))
+hist <- hist |> mutate(symbol = factor(symbol, levels = lev))
+
+n_flag <- nrow(ex)
+n_high <- sum(ex$direction == "high")
+n_low  <- sum(ex$direction == "low")
+frac_lab <- c(bulk = "Bulk", sieved63 = "Sieved <63 um", sieved20 = "Sieved <20 um")
+```
+
+## How a value is flagged
+
+The check runs on the standardised values (`value_std`, mg/kg), on chemistry only
+(the seven targets, the Fe/Al normalisers, and organic carbon). Grain-size
+composition is bounded 0 to 100 percent and handled by its own correction, so it is
+left out.
+
+Because concentrations are strictly positive and span up to four or five orders of
+magnitude, the comparison is done on **log10(value)**, and separately for each
+**element and fraction**. Fraction matters: sieving concentrates metals, so a sieved
+sample's normal level is higher than a bulk one, and pooling them would wrongly flag
+legitimate sieved values.
+
+Within each element-and-fraction group a value is flagged only when it is **both**:
+
+- a statistical outlier: more than **4 robust deviations** (median absolute
+  deviation) from the group median on the log scale; **and**
+- at least **one order of magnitude** (tenfold) away from the group median.
+
+The tenfold floor is what targets registration errors specifically. It keeps the
+genuinely extreme values (a copper hundreds of times the typical level) while sparing
+elements whose real spread is narrow, where "far in deviation units" can still be well
+within a factor of ten. The effective boundary is therefore
+`median +/- max(4 deviations, tenfold)`. Groups with fewer than 100 values are left
+unflagged (too few to describe a distribution reliably) and rely on the physical range
+check instead. Region is deliberately not used: regional differences are around
+twofold, trivial next to the tenfold-plus errors this targets.
+
+## What the distributions look like
+
+Each panel is one element; the curves are the log10 value distribution for each
+fraction, and the dashed red lines are the flagging boundary for the **bulk** track
+(the sieved boundaries differ and are listed in the table below). Values outside the
+dashed lines are flagged.
+
+```{r}
+#| label: distributions
+#| fig-width: 10
+#| fig-height: 7
+#| fig-cap: "log10(value_std) by element and fraction; dashed red = bulk flagging boundary."
+bulk_thr <- smry |> filter(fraction == "bulk")
+
+ggplot(hist, aes(bin, n, colour = fraction)) +
+  geom_line(na.rm = TRUE) +
+  geom_vline(data = bulk_thr, aes(xintercept = log10(thr_lo)),
+             linetype = "dashed", colour = "firebrick", linewidth = 0.4) +
+  geom_vline(data = bulk_thr, aes(xintercept = log10(thr_hi)),
+             linetype = "dashed", colour = "firebrick", linewidth = 0.4) +
+  facet_wrap(~ symbol, scales = "free") +
+  scale_colour_manual(values = c(bulk = "#EE6677", sieved63 = "#4477AA",
+                                 sieved20 = "#228833"),
+                      labels = frac_lab, name = NULL) +
+  labs(x = "log10 value (mg/kg)", y = "count") +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+The wide distributions (Copper, Zinc, Manganese) are flagged only far out in the
+tails, where the tenfold floor is easily cleared. Narrow ones (Selenium) are governed
+by the tenfold floor rather than the deviation rule, so their real tails are left
+alone.
+
+## What was flagged
+
+In total **`r n_flag`** measurements are flagged (`r n_high` high, `r n_low` low),
+about 0.3 percent of the chemistry data. The counts per element and fraction, with the
+group median and the flagging boundary (all mg/kg):
+
+```{r}
+#| label: summary-table
+smry |>
+  arrange(symbol, fraction) |>
+  transmute(Element = symbol,
+            Fraction = recode(fraction, !!!frac_lab),
+            N = n,
+            Median = round(median_val, 1),
+            `Low bound` = round(thr_lo, 1),
+            `High bound` = round(thr_hi, 1),
+            `Flagged high` = n_high,
+            `Flagged low` = n_low) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+## Example flagged values
+
+The clearest cases read as data-entry errors. Manganese at tens of thousands of mg/kg
+(several percent of the sediment), organic carbon at around 100 mg/kg (a hundredth of
+the typical level, a dropped decimal), copper hundreds of times its median. The
+`Fold` column is the value divided by its group median.
+
+```{r}
+#| label: examples
+bind_rows(
+  ex |> filter(direction == "high") |> arrange(desc(fold_vs_med)) |> head(8),
+  ex |> filter(direction == "low")  |> arrange(fold_vs_med)       |> head(6)
+) |>
+  transmute(Element = symbol,
+            Fraction = recode(fraction, !!!frac_lab),
+            Direction = direction,
+            `Value (mg/kg)` = value_std,
+            `Group median` = group_median,
+            Fold = fold_vs_med,
+            Source = source,
+            Sea = sea_name) |>
+  kable(format.args = list(big.mark = ","))
+```
+
+Some high values may be real: a heavily contaminated fjord or harbour basin can carry
+metal levels far above the open-sea background. That is exactly why this stays a
+review marker rather than a deletion. Downstream use can treat `outlier_flag` as a
+removal candidate, weigh it together with the physical range flag and the source's own
+quality flags, and decide per value.
