@@ -7,9 +7,10 @@ subtitle: "Removing the same reading reported by more than one source"
 th { white-space: nowrap; }
 ```
 
-The sources overlap. In particular ICES-DOME is an international archive that
-re-hosts national data, so the same measurement can appear both in a national source
-and again in ICES-DOME. The second step finds those duplicates and keeps only one copy.
+The sources overlap. ICES-DOME is an international archive that re-hosts national
+data, so the same measurement can appear both in a national source and again in
+ICES-DOME; and one Vannmiljø dataset is itself re-hosted Mareano data. The second
+step finds those duplicates and keeps only one copy.
 
 ```{r}
 #| label: setup
@@ -27,28 +28,43 @@ total_dup <- sum(dd$n)
 
 ## When two measurements are the same
 
-Two measurements are treated as the same reading when they share **all** of:
-
-- the same location (latitude and longitude rounded to three decimals),
-- the **exact** sampling date (readings with no date are never merged),
-- the same depth layer,
-- the same element and the same track (bulk or sieved, and the sieve cutoff),
-- and a standardised value within **1 percent** of each other.
-
-This is deliberately strict: it targets re-hosted copies, not merely similar samples.
-When a group of duplicates is found, the copy from the **most preferred source** is
-kept and the others are dropped. The preference order is:
+Two rules identify duplicates. Both keep the copy from the **most preferred source**
+and drop the others; the preference order is:
 
 **Mareano > 4Demon > MUDAB > Vannmiljø > ICES-DOME.**
 
 ICES-DOME is last because it is the aggregator; a national source is preferred over
 its re-hosted copy.
 
+**The general rule.** Two measurements are the same reading when they share **all** of:
+
+- the same location (latitude and longitude rounded to three decimals),
+- the same sampling **year** (readings with no year are never merged),
+- the same depth layer,
+- the same element and the same track (bulk or sieved, and the sieve cutoff),
+- and a standardised value within **1 percent** of each other.
+
+The year (rather than the exact date) is used because a re-hosting archive often
+rewrites the date field, so requiring an identical date would split copies that are
+plainly the same reading. The strict 1 percent value match is what keeps genuinely
+different samples apart, so relaxing the date to the year is safe: in practice it fires
+almost only on real re-hosted overlaps, chiefly ICES-DOME copies of the German data
+also held in MUDAB.
+
+**The provenance rule.** One Vannmiljø dataset is literally named as re-hosted Mareano
+data. Re-hosting nudged its values slightly, past the 1 percent match, so the general
+rule misses it. For that dataset alone, a reading is a duplicate when native Mareano
+has the same location, year, element and track within **5 percent**. The looser
+tolerance is safe because the shared origin is known from the dataset name; the
+Vannmiljø readings that native Mareano does not carry (it covers a shorter span of
+years) are kept.
+
 ## What was removed
 
 In total **`r scales::comma(total_dup)`** measurements were flagged as duplicates
-(about 8 percent). Almost all are ICES-DOME copies superseded by a national source,
-and the largest single overlap is with MUDAB (the German data).
+(nearly 10 percent). Most are ICES-DOME copies superseded by a national source, and
+the largest single overlap is with MUDAB (the German data); a smaller set is
+Vannmiljø's re-hosted Mareano readings, superseded by native Mareano.
 
 ```{r}
 #| label: winner-loser
@@ -96,6 +112,7 @@ dd |>
 
 ::: {.callout-note}
 Bulk and sieved are matched separately (the track is part of the key), so a bulk
-reading is never removed in favour of a sieved one. The 1 percent, exact-date rule is
-conservative: genuinely different samples at the same place are kept apart.
+reading is never removed in favour of a sieved one. The 1 percent value match is the
+real guard on both rules: genuinely different samples at the same place and year are
+kept apart.
 :::
