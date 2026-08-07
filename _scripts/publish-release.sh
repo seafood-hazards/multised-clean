@@ -41,7 +41,9 @@ files=()
 missing=()
 while read -r asset; do
   [[ -z $asset || $asset == \#* ]] && continue
-  found=$(find "$source_root" -name "$asset" -type f -print -quit 2>/dev/null || true)
+  # -L: the engine's `data` is a symlink to external storage, and find will not
+  # descend into one without it. Without -L every asset reports as missing.
+  found=$(find -L "$source_root" -name "$asset" -type f -print -quit 2>/dev/null || true)
   if [[ -n $found ]]; then
     files+=("$found")
   else
