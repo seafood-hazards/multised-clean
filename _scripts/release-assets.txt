@@ -1,0 +1,41 @@
+# Assets every release must carry: the site downloads these at pre-render (see
+# download-data.R), plus multised_merged.sqlite, which the Database Downloads
+# page links to. Keep this list and download-data.R in step;
+# publish-release.sh reads this one.
+
+mareano_clean.sqlite
+vannmiljo_clean.sqlite
+ices_dome_clean.sqlite
+mudab_clean.sqlite
+4demon_clean.sqlite
+aquaculture_no.sqlite
+grainsize_targets_fines.csv
+grainsize_fraction_summary.csv
+grainsize_fines_summary.csv
+grainsize_conc_vs_fines.csv
+grainsize_bulk_vs_sieved.csv
+normalisation_pairs.csv
+normalisation_availability.csv
+normalisation_correlation.csv
+normalisation_ratios.csv
+organic_pairs.csv
+organic_availability.csv
+organic_distribution.csv
+organic_correlation.csv
+spatial_enrichment.csv
+spatial_normaliser.csv
+spatial_pairs.csv
+temporal_enrichment.csv
+temporal_normaliser.csv
+temporal_pairs.csv
+uncertainty_coverage.csv
+uncertainty_by_element.csv
+uncertainty_pairs.csv
+uncertainty_rel_values.csv
+uncertainty_by_method.csv
+merge_retention.csv
+merge_stage_totals.csv
+merge_dedup.csv
+
+# linked from the Database Downloads page, not downloaded at pre-render
+multised_merged.sqlite

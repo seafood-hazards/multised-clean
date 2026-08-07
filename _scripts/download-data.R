@@ -6,12 +6,20 @@
 # this script maps each to its expected path under data/ and downloads it.
 #
 # Files that already exist are skipped, so a local `data` (which may be a symlink
-# to the live sedimenter data area during development) is never overwritten.
-# Change the release tag here or via the DB_RELEASE env var (e.g. in the workflow).
+# to the live pipeline data area during development) is never overwritten.
+#
+# The assets come from the LATEST release, so no tag is edited here. That means
+# EVERY release must carry all of them, or the next render 404s: use
+# _scripts/publish-release.sh, which uploads them in one command. Set DB_RELEASE
+# to pin an older release (e.g. DB_RELEASE=v0.1.0) when reproducing a build.
 
-tag  <- Sys.getenv("DB_RELEASE", "v0.1.0")
+tag  <- Sys.getenv("DB_RELEASE", "latest")
 repo <- "seafood-hazards/multised-clean"
-base <- sprintf("https://github.com/%s/releases/download/%s", repo, tag)
+base <- if (identical(tag, "latest")) {
+  sprintf("https://github.com/%s/releases/latest/download", repo)
+} else {
+  sprintf("https://github.com/%s/releases/download/%s", repo, tag)
+}
 
 sources <- c("mareano", "vannmiljo", "ices_dome", "mudab", "4demon")
 
