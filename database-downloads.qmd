@@ -15,11 +15,11 @@ the [DB Schema (Clean)](./db-schema-clean.qmd) and
 The clean database comes in two versions, both using the same filename
 `<source>_clean.sqlite` (so keep them apart if you download both):
 
-- **Site input** (this multised-clean v0.1.0 release): the clean database enriched
+- **Site input** (this repository's latest release): the clean database enriched
   for this site, adding `site.dist_to_aquaculture` (distance to the nearest
   Norwegian aquaculture site). This is the version the pages here read, so use these
   to reproduce the site.
-- **Upstream** (the multised-slim v0.1.0 release): the base clean database as
+- **Upstream** (the multised-slim latest release): the base clean database as
   published by the slim pipeline, without the aquaculture distance.
 
 Both share the same [DB Schema (Clean)](./db-schema-clean.qmd).
@@ -30,11 +30,11 @@ Both share the same [DB Schema (Clean)](./db-schema-clean.qmd).
 
 | Source | File | Download |
 |:-------|:-----|:---------|
-| Mareano | `mareano_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/mareano_clean.sqlite) |
-| Vannmiljø | `vannmiljo_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/vannmiljo_clean.sqlite) |
-| ICES-DOME | `ices_dome_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/ices_dome_clean.sqlite) |
-| MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/mudab_clean.sqlite) |
-| 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/4demon_clean.sqlite) |
+| Mareano | `mareano_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/latest/download/mareano_clean.sqlite) |
+| Vannmiljø | `vannmiljo_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/latest/download/vannmiljo_clean.sqlite) |
+| ICES-DOME | `ices_dome_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/latest/download/ices_dome_clean.sqlite) |
+| MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/latest/download/mudab_clean.sqlite) |
+| 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/latest/download/4demon_clean.sqlite) |
 
 : Site-input clean databases {.striped .hover tbl-colwidths="[25,45,30]"}
 
@@ -42,11 +42,11 @@ Both share the same [DB Schema (Clean)](./db-schema-clean.qmd).
 
 | Source | File | Download |
 |:-------|:-----|:---------|
-| Mareano | `mareano_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/mareano_clean.sqlite) |
-| Vannmiljø | `vannmiljo_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/vannmiljo_clean.sqlite) |
-| ICES-DOME | `ices_dome_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/ices_dome_clean.sqlite) |
-| MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/mudab_clean.sqlite) |
-| 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/download/v0.1.0/4demon_clean.sqlite) |
+| Mareano | `mareano_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/latest/download/mareano_clean.sqlite) |
+| Vannmiljø | `vannmiljo_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/latest/download/vannmiljo_clean.sqlite) |
+| ICES-DOME | `ices_dome_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/latest/download/ices_dome_clean.sqlite) |
+| MUDAB | `mudab_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/latest/download/mudab_clean.sqlite) |
+| 4Demon | `4demon_clean.sqlite` | [Download](https://github.com/seafood-hazards/multised-slim/releases/latest/download/4demon_clean.sqlite) |
 
 : Upstream clean databases {.striped .hover tbl-colwidths="[25,45,30]"}
 
@@ -60,7 +60,7 @@ duplicates removed (one row per reading). Its layout and the merge steps are on 
 
 | File | Download |
 |:-----|:---------|
-| `multised_merged.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/download/v0.1.0/multised_merged.sqlite) |
+| `multised_merged.sqlite` | [Download](https://github.com/seafood-hazards/multised-clean/releases/latest/download/multised_merged.sqlite) |
 
 : Merged database {.striped .hover tbl-colwidths="[45,55]"}
 

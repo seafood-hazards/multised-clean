@@ -1,6 +1,6 @@
 ---
 title: "Site locations"
-subtitle: "Location attributes recomputed consistently with geoenrich"
+subtitle: "Location attributes recomputed consistently with seastamp"
 ---
 
 ```{css, echo=FALSE}
@@ -8,7 +8,7 @@ th { white-space: nowrap; }
 ```
 
 Each site's location attributes were recomputed with the
-[geoenrich](https://github.com/AIQC-Hub/geoenrich) command-line tool and written
+[seastamp](https://github.com/AIQC-Hub/seastamp) command-line tool and written
 back into the clean `site` tables, so that all five sources carry **one consistent
 set of location values** (derived the same way from the same reference data) rather
 than each source's own. This matters for the later cross-source merge: a site off
@@ -16,7 +16,7 @@ the Norwegian coast should get the same depth, sea and distance-to-coast whether
 came from Mareano or ICES-DOME.
 
 The step runs upstream in the processing pipeline: it exports the
-site coordinates, runs geoenrich, and replaces six columns.
+site coordinates, runs seastamp, and replaces six columns.
 
 ```{r}
 #| label: setup
@@ -47,7 +47,7 @@ theme_set(theme_minimal(base_size = 12))
 
 ## What was recomputed
 
-Six columns are replaced with geoenrich output; `site_id`, `latitude` and
+Six columns are replaced with seastamp output; `site_id`, `latitude` and
 `longitude` are untouched.
 
 ```{r}
