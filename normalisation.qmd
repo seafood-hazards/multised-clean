@@ -136,6 +136,13 @@ ratio |>
 Normalisation applies to the grain-size-controlled metals (CO, CU, ZN, and to a
 lesser extent MN). Molybdenum and selenium are not lithogenically controlled, so
 their Fe/Al fits are near zero and normalisation is not appropriate for them; they
-are kept in the tables for completeness. The enrichment factor and pristine cutoff
-are built on these normalised values at the later merged / background stage.
+are kept in the tables for completeness.
+
+Two limits on how far this page carries. Everything above is **bulk**: a sieved
+sample was grain-size controlled by the sieve before the chemistry, so a normaliser
+ratio on it is a diagnostic and not a correction, and the later stages judge those
+fractions without one. And the enrichment factor built downstream, at the refined
+stage, uses **aluminium only**: iron is reported here for comparison but never
+normalises a verdict, because Norwegian fish feed contains iron, so iron near a farm
+is partly the pressure being measured.
 :::
