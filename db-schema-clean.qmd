@@ -164,7 +164,7 @@ tribble(
   "comp_exist",        "INTEGER", "1/0: grain-size composition exists.",
   "target_frac_class", "TEXT",    "Fraction summary of the subsample's target measurements: 'bulk', 'sieved', or 'mixed' (targets span both). NULL if no target-metal measurement (grain-size-only, or normaliser/organic-only subsamples).",
   "target_sieve_um",   "REAL",    "Target sieve cutoff where unambiguous, else NULL.",
-  "fines_lt63",        "REAL",    "% finer than 63 um (clay + silt mud content), else NULL.",
+  "fines_lt63",        "REAL",    "% finer than 63 um (mud content) of the PARENT sediment as collected, else NULL. It describes the sample the subsample was taken from, never a sieved aliquot: a cut below 63 um would be 100% by definition, yet the median here for subsamples whose targets are sieved to <63 um is about 15%, lower than the 50% for bulk, because sandy sediment is what gets sieved. So it must not be used to normalise a sieved measurement.",
   "fines_basis",       "TEXT",    "How fines_lt63 was derived."
 ) |> kable()
 ```
